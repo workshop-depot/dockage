@@ -239,10 +239,17 @@ func (q *Q) init() {
 }
 
 func (q *Q) stopWords() (start, end, prefix []byte) {
+	_end := q.End
+	if bytes.HasSuffix(_end, []byte("\uffff")) {
+		diff := len(q.Start) - len(_end)
+		if diff > 0 {
+			_end = append(_end, bytes.Repeat([]byte{0xFF}, diff)...)
+		}
+	}
 	if q.View != "" {
 		pfx := pat(q.View + xtok)
 		start = []byte(pfx + pat(string(q.Start)))
-		end = []byte(pfx + pat(string(q.End)))
+		end = []byte(pfx + pat(string(_end)))
 		if len(q.Prefix) > 0 {
 			prefix = []byte(pfx + pat(string(q.Prefix)))
 		} else {
@@ -251,7 +258,7 @@ func (q *Q) stopWords() (start, end, prefix []byte) {
 		return
 	}
 	start = append([]byte(q.View), q.Start...)
-	end = append([]byte(q.View), q.End...)
+	end = append([]byte(q.View), _end...)
 	if len(q.Prefix) > 0 {
 		prefix = append([]byte(q.View), q.Prefix...)
 	} else {
