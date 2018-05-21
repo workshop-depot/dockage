@@ -10,5 +10,4 @@ This is an embedded document/json store based on [badger](https://github.com/dgr
 - [ ] rebuild view
 - [ ] query count
 - [ ] cas
-- [x] if end ends in \uffff make it the same length as start
 - [ ] polish/check id (no ^, < or >)
