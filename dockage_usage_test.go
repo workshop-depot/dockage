@@ -122,8 +122,8 @@ func TestView(t *testing.T) {
 	ddb := db
 	ddb.AddView(dockage.NewView(
 		"tags",
-		func(k, v []byte) (_res []struct{ Key, Val []byte }) {
-			type kv struct{ Key, Val []byte }
+		func(k, v []byte) (_res []dockage.KV) {
+			type kv = dockage.KV
 			res := gjson.Get(string(v), "tags")
 			res.ForEach(func(pk, pv gjson.Result) bool {
 				_res = append(_res, kv{Key: []byte(pv.String())})

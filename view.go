@@ -20,12 +20,12 @@ func (vl views) buildAll(txn *badger.Txn, k, v []byte) error {
 // View .
 type View struct {
 	name  string
-	mapfn func(k, v []byte) []struct{ Key, Val []byte }
+	mapfn func(k, v []byte) []KV
 }
 
 // NewView .
 func NewView(name string,
-	mapfn func(k, v []byte) []struct{ Key, Val []byte }) View {
+	mapfn func(k, v []byte) []KV) View {
 	return View{
 		name:  name,
 		mapfn: mapfn,

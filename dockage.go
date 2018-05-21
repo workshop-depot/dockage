@@ -53,7 +53,7 @@ func (db *DB) Close() error { return db.db.Close() }
 func (db *DB) AddView(v View) { db.views = append(db.views, v) }
 
 // Query .
-func (db *DB) Query(params Q) (_res []struct{ Key, Val []byte }, _err error) {
+func (db *DB) Query(params Q) (_res []KV, _err error) {
 	params.init()
 	start, end, prefix := params.stopWords()
 
@@ -103,7 +103,7 @@ func (db *DB) Query(params Q) (_res []struct{ Key, Val []byte }, _err error) {
 			polishedKey = bytes.TrimPrefix(polishedKey, []byte(pfx))
 			polishedKey = bytes.Split(polishedKey, []byte(sep))[0]
 		}
-		_res = append(_res, kv{Key: polishedKey, Val: v})
+		_res = append(_res, KV{Key: polishedKey, Val: v})
 		return nil
 	}
 
@@ -151,7 +151,7 @@ func (db *DB) Put(docs ...interface{}) (_err error) {
 		return
 	}
 	_err = db.db.Update(func(txn *badger.Txn) error {
-		var builds []kv
+		var builds []KV
 		for _, vdoc := range docs {
 			js, id, err := prep(vdoc)
 			if err != nil {
@@ -160,7 +160,7 @@ func (db *DB) Put(docs ...interface{}) (_err error) {
 			if err := txn.Set(id, js); err != nil {
 				return err
 			}
-			builds = append(builds, kv{Key: id, Val: js})
+			builds = append(builds, KV{Key: id, Val: js})
 		}
 		for _, v := range builds {
 			if err := db.views.buildAll(txn, v.Key, v.Val); err != nil {
@@ -172,14 +172,14 @@ func (db *DB) Put(docs ...interface{}) (_err error) {
 	return
 }
 
-func (db *DB) _all() (_res []kv, _err error) {
+func (db *DB) _all() (_res []KV, _err error) {
 	_err = db.db.View(func(txn *badger.Txn) error {
 		opt := badger.DefaultIteratorOptions
 		opt.PrefetchValues = false
 		itr := txn.NewIterator(opt)
 		for itr.Rewind(); itr.Valid(); itr.Next() {
 			itm := itr.Item()
-			var kv kv
+			var kv KV
 			kv.Key = itm.KeyCopy(nil)
 			var err error
 			kv.Val, err = itm.ValueCopy(nil)
@@ -220,8 +220,8 @@ func prep(doc interface{}) (_js, _id []byte, _err error) {
 	return
 }
 
-// kv tuple
-type kv struct {
+// KV tuple
+type KV struct {
 	Key, Val []byte
 }
 
