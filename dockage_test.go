@@ -227,19 +227,8 @@ func TestView(t *testing.T) {
 	require.NoError(err)
 	require.Equal(5, len(l))
 
-	// {
-	// 	l, err := ddb._all()
-	// 	require.NoError(err)
-	// 	for _, v := range l {
-	// 		t.Logf("%s %s", v.Key, v.Val)
-	// 	}
-	// }
-
 	l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002"), Prefix: []byte("TAG00")})
 	require.NoError(err)
-	// for _, v := range l {
-	// 	t.Logf("%s %s %s", v.Key, v.Val, v.Index)
-	// }
 	require.Equal(10, len(l))
 	for i := 1; i <= 10; i++ {
 		j := i
@@ -253,64 +242,3 @@ func TestView(t *testing.T) {
 		require.Equal(k, string(l[i-1].Key))
 	}
 }
-
-// func TestDeleteView(t *testing.T) {
-// 	require := require.New(t)
-
-// 	ddb := db
-// 	ddb.AddView(NewView(
-// 		"dtags",
-// 		func(k, v []byte) (_res []KV) {
-// 			type kv = KV
-// 			res := gjson.Get(string(v), "tags")
-// 			res.ForEach(func(pk, pv gjson.Result) bool {
-// 				_res = append(_res, kv{Key: []byte(pv.String())})
-// 				return true
-// 			})
-// 			return
-// 		}))
-
-// 	var ids []string
-// 	for i := 1; i <= 150; i++ {
-// 		k := fmt.Sprintf("D%06d", i)
-// 		ids = append(ids, k)
-// 	}
-// 	require.NoError(ddb.Delete(ids...))
-
-// 	var list []interface{}
-// 	for i := 1; i <= 5; i++ {
-// 		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
-// 		d := data{ID: k, Text: v, At: time.Now().UnixNano()}
-// 		for j := 1; j <= 3; j++ {
-// 			d.Tags = append(d.Tags, fmt.Sprintf("TAG%03d", j))
-// 		}
-// 		list = append(list, d)
-// 	}
-// 	require.NoError(ddb.Put(list...))
-
-// 	l, err := db._all()
-// 	require.NoError(err)
-// 	require.Equal(65, len(l))
-
-// 	require.NoError(db.DeleteView("dtags"))
-
-// 	l, err = db._all()
-// 	require.NoError(err)
-// 	require.Equal(35, len(l))
-
-// 	// l, err := ddb.Query(Q{Limit: 1000000})
-// 	// require.NoError(err)
-// 	// require.Equal(5, len(l))
-
-// 	// l, err = ddb.Query(Q{View: "tags", End: []byte("\uffff")})
-// 	// require.NoError(err)
-// 	// require.Equal(15, len(l))
-
-// 	// l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002"), End: []byte("\uffff")})
-// 	// require.NoError(err)
-// 	// require.Equal(5, len(l))
-
-// 	// l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002"), Prefix: []byte("TAG00"), End: []byte("\uffff")})
-// 	// require.NoError(err)
-// 	// require.Equal(10, len(l))
-// }

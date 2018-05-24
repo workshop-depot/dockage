@@ -133,11 +133,6 @@ func (db *DB) Query(params Q) (_res []Res, _err error) {
 	body := func(itr interface{ Item() *badger.Item }) error {
 		item := itr.Item()
 		k := item.KeyCopy(nil)
-		// if params.View == "" {
-		// 	if bytes.HasPrefix(k, []byte(sep)) {
-		// 		return nil
-		// 	}
-		// }
 		skip--
 		if applySkip && skip >= 0 {
 			return nil
@@ -167,14 +162,6 @@ func (db *DB) Query(params Q) (_res []Res, _err error) {
 			index = parts[2]
 			polishedKey = parts[3]
 		}
-		// if strings.HasPrefix(params.View, viewsp) {
-		// 	name := string(_hash([]byte(params.View[1:])))
-		// 	pfx := _pat4View(name+viewx2k) + viewsp
-		// 	polishedKey = bytes.TrimPrefix(polishedKey, []byte(pfx))
-		// 	parts := bytes.Split(polishedKey, []byte(viewsp))
-		// 	log.Printf("%s %s", parts[0], parts[1])
-		// 	polishedKey = parts[0]
-		// }
 		var rs Res
 		rs.Key = polishedKey
 		rs.Val = v
@@ -259,57 +246,3 @@ var (
 )
 
 //-----------------------------------------------------------------------------
-
-// // DeleteView deletes the data of a view.
-// func (db *DB) DeleteView(v string) (_err error) {
-// 	var cnt int
-// 	var wg sync.WaitGroup
-// 	for _err == nil {
-// 		wg.Add(1)
-// 		go func() {
-// 			defer wg.Done()
-// 			cnt, _err = db.deleteView(v)
-// 			fmt.Println(cnt)
-// 		}()
-// 		wg.Wait()
-// 		if _err != nil {
-// 			return
-// 		}
-// 		if cnt < 1000 {
-// 			return
-// 		}
-// 	}
-// 	return
-// }
-
-// func (db *DB) deleteView(v string) (_cnt int, _err error) {
-// 	log.SetFlags(log.Lshortfile)
-// 	limit := 1000
-// 	defer func() { _cnt = 1000 - limit }()
-// 	prefix := []byte(pat(v))
-// 	_err = db.db.Update(func(txn *badger.Txn) error {
-// 		opt := badger.DefaultIteratorOptions
-// 		opt.PrefetchValues = false
-// 		itr := txn.NewIterator(opt)
-// 		defer itr.Close()
-// 		var todelete [][]byte
-// 		for itr.Seek(prefix); itr.ValidForPrefix(prefix); itr.Next() {
-// 			item := itr.Item()
-// 			k := item.Key()
-// 			v, err := item.ValueCopy(nil)
-// 			if err != nil {
-// 				return err
-// 			}
-// 			todelete = append(todelete, k, v)
-// 		}
-// 		for _, vd := range todelete {
-// 			log.Printf("%s %s\n", vd, prefix)
-// 			if err := txn.Delete(vd); err != nil {
-// 				return err
-// 			}
-// 			limit--
-// 		}
-// 		return nil
-// 	})
-// 	return
-// }
