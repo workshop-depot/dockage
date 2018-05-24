@@ -95,6 +95,30 @@ func (db *DB) Put(docs ...interface{}) (_err error) {
 	return
 }
 
+// Get .
+func (db *DB) Get(ids ...string) (_res []KV, _err error) {
+	if len(ids) == 0 {
+		return
+	}
+	_err = db.db.View(func(txn *badger.Txn) error {
+		for _, vid := range ids {
+			vid := _pat4Key(vid)
+			item, err := txn.Get([]byte(vid))
+			if err != nil {
+				return err
+			}
+			k := item.KeyCopy(nil)
+			v, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			_res = append(_res, KV{Key: k, Val: v})
+		}
+		return nil
+	})
+	return
+}
+
 // Delete .
 func (db *DB) Delete(ids ...string) (_err error) {
 	if len(ids) == 0 {
