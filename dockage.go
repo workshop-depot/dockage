@@ -33,6 +33,40 @@ func (db *DB) Close() error { return db.db.Close() }
 // AddView .
 func (db *DB) AddView(v View) { db.views = append(db.views, v) }
 
+// DeleteView deletes the data of a view.
+func (db *DB) DeleteView(v string) (_err error) {
+	name := string(_hash([]byte(v)))
+	prefix := []byte(_pat4View(name))
+	_err = db.db.Update(func(txn *badger.Txn) error {
+		opt := badger.DefaultIteratorOptions
+		opt.PrefetchValues = false
+		itr := txn.NewIterator(opt)
+		defer itr.Close()
+		var todelete [][]byte
+		for itr.Seek(prefix); itr.ValidForPrefix(prefix); itr.Next() {
+			item := itr.Item()
+			k := item.KeyCopy(nil)
+			v, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+			if len(k) != 0 {
+				todelete = append(todelete, k)
+			}
+			if len(v) != 0 {
+				todelete = append(todelete, v)
+			}
+		}
+		for _, vd := range todelete {
+			if err := txn.Delete(vd); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return
+}
+
 // Put .
 func (db *DB) Put(docs ...interface{}) (_err error) {
 	if len(docs) == 0 {

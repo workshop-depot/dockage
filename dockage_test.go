@@ -242,3 +242,44 @@ func TestView(t *testing.T) {
 		require.Equal(k, string(l[i-1].Key))
 	}
 }
+
+func TestDeleteView(t *testing.T) {
+	require := require.New(t)
+
+	var ids []string
+	for i := 1; i <= 150; i++ {
+		k := fmt.Sprintf("D%06d", i)
+		ids = append(ids, k)
+	}
+	require.NoError(db.Delete(ids...))
+
+	N := 631
+	var list []interface{}
+	for i := 1; i <= N; i++ {
+		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
+		d := data{ID: k, Text: v, At: time.Now().UnixNano()}
+		for j := 1; j <= 3; j++ {
+			d.Tags = append(d.Tags, fmt.Sprintf("TAG%03d", j))
+		}
+		list = append(list, d)
+	}
+	require.NoError(db.Put(list...))
+
+	l, err := db.Query(Q{Limit: 1000000})
+	require.NoError(err)
+	require.Equal(N, len(l))
+	for i := 1; i <= N; i++ {
+		k := fmt.Sprintf("D%06d", i)
+		require.Equal(k, string(l[i-1].Key))
+	}
+
+	lkv, err := db._all()
+	require.NoError(err)
+	require.Equal(N+N*3+N*3, len(lkv))
+
+	require.NoError(db.DeleteView("tags"))
+
+	lkv, err = db._all()
+	require.NoError(err)
+	require.Equal(N, len(lkv))
+}
