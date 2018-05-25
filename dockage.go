@@ -112,6 +112,7 @@ func (db *DB) Get(ids ...string) (_res []KV, _err error) {
 			if err != nil {
 				return err
 			}
+			k = bytes.TrimPrefix(k, []byte(keysp))
 			_res = append(_res, KV{Key: k, Val: v})
 		}
 		return nil

@@ -43,7 +43,7 @@ func createDB() *DB {
 	return _db
 }
 
-func ExampleDB() {
+func ExampleDB_Put() {
 	db := createDB()
 	defer db.Close()
 
@@ -51,7 +51,7 @@ func ExampleDB() {
 		ID:   "CMNT::001",
 		By:   "Frodo Baggins",
 		Text: "Hi!",
-		At:   time.Now().UnixNano(),
+		At:   time.Now(),
 		Tags: []string{"tech", "golang"},
 	}
 
@@ -85,7 +85,7 @@ func ExampleDB_Delete() {
 		ID:   "CMNT::001",
 		By:   "Frodo Baggins",
 		Text: "Hi!",
-		At:   time.Now().UnixNano(),
+		At:   time.Now(),
 		Tags: []string{"tech", "golang"},
 	}
 
@@ -110,6 +110,9 @@ func ExampleView() {
 		func(em Emitter, k, v []byte) {
 			type kv = KV
 			res := gjson.Get(string(v), "tags")
+			if !res.Exists() {
+				return
+			}
 			res.ForEach(func(pk, pv gjson.Result) bool {
 				em.Emit([]byte(pv.String()), nil)
 				return true
@@ -123,7 +126,7 @@ func ExampleView() {
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
-			At:   time.Now().UnixNano(),
+			At:   time.Now(),
 			Tags: []string{"tech", "golang"},
 		}
 		list = append(list, cmnt)
@@ -143,4 +146,354 @@ func ExampleView() {
 	// CMNT::001  tech
 	// CMNT::002  tech
 	// CMNT::003  tech
+}
+
+func ExampleView_byTime() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Time()
+			if t.IsZero() {
+				return
+			}
+			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   at,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+	}
+	fmt.Println(db.Put(list...))
+
+	start := []byte("2018-01-01")
+	prefix := []byte("2018-01")
+	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %s\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::001  2018-01-01
+	// CMNT::002  2018-01-02
+	// CMNT::003  2018-01-03
+}
+
+func ExampleView_viewVal() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Time()
+			if t.IsZero() {
+				return
+			}
+			res = gjson.Get(string(v), "by")
+			if !res.Exists() {
+				return
+			}
+			em.Emit([]byte(t.Format("2006-01-02")), []byte(res.String()))
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   at,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+	}
+	fmt.Println(db.Put(list...))
+
+	start := []byte("2018-01-01")
+	prefix := []byte("2018-01")
+	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %s\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::001 Frodo Baggins 2018-01-01
+	// CMNT::002 Frodo Baggins 2018-01-02
+	// CMNT::003 Frodo Baggins 2018-01-03
+}
+
+func ExampleView_limit() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Time()
+			if t.IsZero() {
+				return
+			}
+			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   at,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+	}
+	fmt.Println(db.Put(list...))
+
+	start := []byte("2018-01-01")
+	prefix := []byte("2018-01")
+	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, Limit: 1})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %s\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::001  2018-01-01
+}
+
+func ExampleView_end() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Time()
+			if t.IsZero() {
+				return
+			}
+			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   at,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+	}
+	fmt.Println(db.Put(list...))
+
+	start := []byte("2018-01-01")
+	prefix := []byte("2018-01")
+	end := []byte("2018-01-03") // exclusive
+	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %s\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::001  2018-01-01
+	// CMNT::002  2018-01-02
+}
+
+func ExampleView_endAll() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Time()
+			if t.IsZero() {
+				return
+			}
+			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   at,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+	}
+	fmt.Println(db.Put(list...))
+
+	start := []byte("2018-01-01")
+	prefix := []byte("2018-01")
+	end := []byte("2018-01\uffff")
+	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %s\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::001  2018-01-01
+	// CMNT::002  2018-01-02
+	// CMNT::003  2018-01-03
+}
+
+func ExampleView_skip() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Time()
+			if t.IsZero() {
+				return
+			}
+			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   at,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+	}
+	fmt.Println(db.Put(list...))
+
+	start := []byte("2018-01-01")
+	prefix := []byte("2018-01")
+	end := []byte("2018-01\uffff")
+	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end, Skip: 1})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %s\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::002  2018-01-02
+	// CMNT::003  2018-01-03
+}
+
+func ExampleDB_Get() {
+	db := createDB()
+	defer db.Close()
+
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   time.Now(),
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+	}
+	fmt.Println(db.Put(list...))
+
+	res, err := db.Get(
+		"CMNT::001",
+		"CMNT::002",
+		"CMNT::003")
+
+	fmt.Println(err)
+
+	for _, v := range res {
+		var c comment
+		fmt.Println(json.Unmarshal(v.Val, &c))
+		fmt.Printf("%s %s %s\n", v.Key, c.Text, c.By)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// <nil>
+	// CMNT::001 Hi! Frodo Baggins
+	// <nil>
+	// CMNT::002 Hi! Frodo Baggins
+	// <nil>
+	// CMNT::003 Hi! Frodo Baggins
 }

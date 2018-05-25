@@ -87,11 +87,11 @@ func TestMain(m *testing.M) {
 }
 
 type comment struct {
-	ID   string   `json:"id,omitempty"`
-	By   string   `json:"by,omitempty"`
-	Text string   `json:"text,omitempty"`
-	At   int64    `json:"at,omitempty"`
-	Tags []string `json:"tags,omitempty"`
+	ID   string    `json:"id,omitempty"`
+	By   string    `json:"by,omitempty"`
+	Text string    `json:"text,omitempty"`
+	At   time.Time `json:"at,omitempty"`
+	Tags []string  `json:"tags,omitempty"`
 }
 
 func TestPutDelete(t *testing.T) {
@@ -107,7 +107,7 @@ func testPutDelete(n int, require *require.Assertions) {
 	var list []interface{}
 	for i := 1; i <= n; i++ {
 		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
-		list = append(list, comment{ID: k, Text: v, At: time.Now().UnixNano()})
+		list = append(list, comment{ID: k, Text: v, At: time.Now()})
 	}
 	require.NoError(db.Put(list...))
 
@@ -138,7 +138,7 @@ func TestSmoke(t *testing.T) {
 	var list []interface{}
 	for i := 1; i <= 15; i++ {
 		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
-		list = append(list, comment{ID: k, Text: v, At: time.Now().UnixNano()})
+		list = append(list, comment{ID: k, Text: v, At: time.Now()})
 	}
 	require.NoError(ddb.Put(list...))
 
@@ -200,7 +200,7 @@ func TestView(t *testing.T) {
 	var list []interface{}
 	for i := 1; i <= 5; i++ {
 		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
-		d := comment{ID: k, Text: v, At: time.Now().UnixNano()}
+		d := comment{ID: k, Text: v, At: time.Now()}
 		for j := 1; j <= 3; j++ {
 			d.Tags = append(d.Tags, fmt.Sprintf("TAG%03d", j))
 		}
@@ -258,7 +258,7 @@ func TestDeleteView(t *testing.T) {
 	var list []interface{}
 	for i := 1; i <= N; i++ {
 		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
-		d := comment{ID: k, Text: v, At: time.Now().UnixNano()}
+		d := comment{ID: k, Text: v, At: time.Now()}
 		for j := 1; j <= 3; j++ {
 			d.Tags = append(d.Tags, fmt.Sprintf("TAG%03d", j))
 		}
