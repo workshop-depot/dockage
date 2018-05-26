@@ -144,53 +144,33 @@ func (db *DB) Delete(ids ...string) (_err error) {
 }
 
 // Query .
-func (db *DB) Query(params Q) (_res []Res, _err error) {
+func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
 	params.init()
 
-	var (
-		start, end, prefix []byte
-	)
+	start, end, prefix := stopWords(params)
 
-	if params.View == "" {
-		start = []byte(_pat4Key(string(params.Start)))
-		if len(params.End) > 0 {
-			end = []byte(_pat4Key(string(params.End)))
-		}
-		if len(params.Prefix) > 0 {
-			prefix = []byte(_pat4Key(string(params.Prefix)))
-		} else {
-			prefix = start
-		}
-	} else {
-		name := string(_hash([]byte(params.View)))
-		pfx := _pat4View(name + viewx2k)
-		start = []byte(pfx + _pat4View(string(params.Start)))
-		if len(params.End) > 0 {
-			end = []byte(pfx + _pat4View(string(params.End)))
-		}
-		if len(params.Prefix) > 0 {
-			prefix = []byte(pfx + _pat4View(string(params.Prefix)))
-		} else {
-			prefix = []byte(pfx)
-		}
-	}
-
-	skip := params.Skip
-	limit := params.Limit
-	var (
-		applySkip, applyLimit bool
-	)
-	if skip > 0 {
-		applySkip = true
-	}
-	if limit <= 0 {
-		limit = 100
-	}
-	if limit > 0 {
-		applyLimit = true
-	}
+	skip, limit, applySkip, applyLimit := limits(params)
 
 	body := func(itr interface{ Item() *badger.Item }) error {
+		if params.Count {
+			_count++
+			skip--
+			if applySkip && skip >= 0 {
+				return nil
+			}
+			if applyLimit && limit <= 0 {
+				return nil
+			}
+			limit--
+			if len(end) > 0 {
+				item := itr.Item()
+				k := item.Key()
+				if bytes.Compare(k, end) > 0 {
+					return nil
+				}
+			}
+			return nil
+		}
 		item := itr.Item()
 		k := item.KeyCopy(nil)
 		skip--
@@ -234,17 +214,71 @@ func (db *DB) Query(params Q) (_res []Res, _err error) {
 		var opt badger.IteratorOptions
 		opt.PrefetchValues = true
 		opt.PrefetchSize = limit
-		it := txn.NewIterator(opt)
-		defer it.Close()
-		for it.Seek(start); it.ValidForPrefix(prefix); it.Next() {
-			if err := body(it); err != nil {
-				return err
-			}
-		}
-		return nil
+		return itrFunc(txn, opt, start, prefix, body)
 	})
 
+	if _count == 0 {
+		_count = len(_res)
+	}
+
 	return
+}
+
+func limits(params Q) (skip, limit int, applySkip, applyLimit bool) {
+	skip = params.Skip
+	limit = params.Limit
+	var ()
+	if skip > 0 {
+		applySkip = true
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 0 {
+		applyLimit = true
+	}
+	return
+}
+
+func stopWords(params Q) (start, end, prefix []byte) {
+	if params.View == "" {
+		start = []byte(_pat4Key(string(params.Start)))
+		if len(params.End) > 0 {
+			end = []byte(_pat4Key(string(params.End)))
+		}
+		if len(params.Prefix) > 0 {
+			prefix = []byte(_pat4Key(string(params.Prefix)))
+		} else {
+			prefix = start
+		}
+	} else {
+		name := string(_hash([]byte(params.View)))
+		pfx := _pat4View(name + viewx2k)
+		start = []byte(pfx + _pat4View(string(params.Start)))
+		if len(params.End) > 0 {
+			end = []byte(pfx + _pat4View(string(params.End)))
+		}
+		if len(params.Prefix) > 0 {
+			prefix = []byte(pfx + _pat4View(string(params.Prefix)))
+		} else {
+			prefix = []byte(pfx)
+		}
+	}
+	return
+}
+
+func itrFunc(txn *badger.Txn,
+	opt badger.IteratorOptions,
+	start, prefix []byte,
+	bodyFunc func(itr interface{ Item() *badger.Item }) error) error {
+	itr := txn.NewIterator(opt)
+	defer itr.Close()
+	for itr.Seek(start); itr.ValidForPrefix(prefix); itr.Next() {
+		if err := bodyFunc(itr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (db *DB) _all() (_res []KV, _err error) {
@@ -276,6 +310,7 @@ type Q struct {
 	View               string
 	Start, End, Prefix []byte
 	Skip, Limit        int
+	Count              bool
 }
 
 func (q *Q) init() {

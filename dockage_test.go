@@ -142,14 +142,14 @@ func TestSmoke(t *testing.T) {
 	}
 	require.NoError(ddb.Put(list...))
 
-	l, err := ddb.Query(Q{Limit: 1000000})
+	l, _, err := ddb.Query(Q{Limit: 1000000})
 	require.NoError(err)
 	require.Equal(15, len(l))
 	for i := 0; i < len(ids); i++ {
 		require.Equal(ids[i], string(l[i].Key))
 	}
 
-	l, err = ddb.Query(Q{Start: []byte("D00001")})
+	l, _, err = ddb.Query(Q{Start: []byte("D00001")})
 	require.NoError(err)
 	require.Equal(6, len(l))
 	for i := 10; i <= 15; i++ {
@@ -157,19 +157,19 @@ func TestSmoke(t *testing.T) {
 		require.Equal(k, string(l[i-10].Key))
 	}
 
-	l, err = ddb.Query(Q{Start: []byte("D00001"), Limit: 2})
+	l, _, err = ddb.Query(Q{Start: []byte("D00001"), Limit: 2})
 	require.NoError(err)
 	require.Equal(2, len(l))
 
-	l, err = ddb.Query(Q{Start: []byte("D00001"), End: []byte("D000012")})
+	l, _, err = ddb.Query(Q{Start: []byte("D00001"), End: []byte("D000012")})
 	require.NoError(err)
 	require.Equal(3, len(l))
 
-	l, err = ddb.Query(Q{Start: []byte("D000012"), Prefix: []byte("D00001")})
+	l, _, err = ddb.Query(Q{Start: []byte("D000012"), Prefix: []byte("D00001")})
 	require.NoError(err)
 	require.Equal(4, len(l))
 
-	l, err = ddb.Query(Q{Start: []byte("D000012"), Prefix: []byte("D00001"), Skip: 1, Limit: 2})
+	l, _, err = ddb.Query(Q{Start: []byte("D000012"), Prefix: []byte("D00001"), Skip: 1, Limit: 2})
 	require.NoError(err)
 	require.Equal(2, len(l))
 }
@@ -208,7 +208,7 @@ func TestView(t *testing.T) {
 	}
 	require.NoError(ddb.Put(list...))
 
-	l, err := ddb.Query(Q{Limit: 1000000})
+	l, cnt, err := ddb.Query(Q{Limit: 1000000})
 	require.NoError(err)
 	require.Equal(5, len(l))
 	for i := 1; i <= 5; i++ {
@@ -216,7 +216,7 @@ func TestView(t *testing.T) {
 		require.Equal(k, string(l[i-1].Key))
 	}
 
-	l, err = ddb.Query(Q{View: "tags"})
+	l, _, err = ddb.Query(Q{View: "tags"})
 	require.NoError(err)
 	require.Equal(15, len(l))
 	for i := 1; i <= 5; i++ {
@@ -224,11 +224,12 @@ func TestView(t *testing.T) {
 		require.Equal(k, string(l[i-1].Key))
 	}
 
-	l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002")})
+	l, cnt, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002")})
 	require.NoError(err)
 	require.Equal(10, len(l))
+	require.Equal(10, cnt)
 
-	l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002"), Prefix: []byte("TAG00")})
+	l, _, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002"), Prefix: []byte("TAG00")})
 	require.NoError(err)
 	require.Equal(10, len(l))
 	for i := 1; i <= 10; i++ {
@@ -266,7 +267,7 @@ func TestDeleteView(t *testing.T) {
 	}
 	require.NoError(db.Put(list...))
 
-	l, err := db.Query(Q{Limit: 1000000})
+	l, _, err := db.Query(Q{Limit: 1000000})
 	require.NoError(err)
 	require.Equal(N, len(l))
 	for i := 1; i <= N; i++ {

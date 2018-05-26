@@ -134,7 +134,7 @@ func ExampleView() {
 	}
 	fmt.Println(db.Put(list...))
 
-	res, err := db.Query(Q{View: "tags", Start: []byte("tech")})
+	res, _, err := db.Query(Q{View: "tags", Start: []byte("tech")})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -185,7 +185,7 @@ func ExampleView_byTime() {
 
 	start := []byte("2018-01-01")
 	prefix := []byte("2018-01")
-	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix})
+	res, _, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -240,7 +240,7 @@ func ExampleView_viewVal() {
 
 	start := []byte("2018-01-01")
 	prefix := []byte("2018-01")
-	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix})
+	res, _, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -291,7 +291,7 @@ func ExampleView_limit() {
 
 	start := []byte("2018-01-01")
 	prefix := []byte("2018-01")
-	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, Limit: 1})
+	res, _, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, Limit: 1})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -341,7 +341,7 @@ func ExampleView_end() {
 	start := []byte("2018-01-01")
 	prefix := []byte("2018-01")
 	end := []byte("2018-01-03") // exclusive
-	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end})
+	res, _, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -392,7 +392,7 @@ func ExampleView_endAll() {
 	start := []byte("2018-01-01")
 	prefix := []byte("2018-01")
 	end := []byte("2018-01\uffff")
-	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end})
+	res, _, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -444,7 +444,7 @@ func ExampleView_skip() {
 	start := []byte("2018-01-01")
 	prefix := []byte("2018-01")
 	end := []byte("2018-01\uffff")
-	res, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end, Skip: 1})
+	res, _, err := db.Query(Q{View: "by_time", Start: start, Prefix: prefix, End: end, Skip: 1})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -545,7 +545,7 @@ func ExampleView_timestampInt64() {
 
 	start := make([]byte, 8)
 	binary.BigEndian.PutUint64(start, uint64(first))
-	res, err := db.Query(Q{View: "by_time", Start: start})
+	res, _, err := db.Query(Q{View: "by_time", Start: start})
 	fmt.Println(err)
 
 	for _, v := range res {
@@ -558,4 +558,47 @@ func ExampleView_timestampInt64() {
 	// CMNT::001  000000005a49f188
 	// CMNT::002  000000005a4b4308
 	// CMNT::003  000000005a4c9488
+}
+
+func ExampleView_count() {
+	db := createDB()
+	defer db.Close()
+
+	db.AddView(NewView("tags",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "tags")
+			if !res.Exists() {
+				return
+			}
+			res.ForEach(func(pk, pv gjson.Result) bool {
+				em.Emit([]byte(pv.String()), nil)
+				return true
+			})
+			return
+		}))
+
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   time.Now(),
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+	}
+	fmt.Println(db.Put(list...))
+
+	res, cnt, err := db.Query(Q{View: "tags", Start: []byte("tech"), Count: true})
+	fmt.Println(err)
+	fmt.Println(len(res))
+	fmt.Println(cnt)
+
+	// Output:
+	// <nil>
+	// <nil>
+	// 0
+	// 3
 }
