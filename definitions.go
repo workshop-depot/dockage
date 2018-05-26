@@ -1,6 +1,8 @@
 package dockage
 
-// Res .
+// Res represents the result of a Query(...) call.
+// Key is the document key, Index is the calculated index and Val is
+// the calculated value by the view.
 type Res struct {
 	KV
 	Index []byte

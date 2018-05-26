@@ -1,3 +1,4 @@
+// Package dockage is an embedded document (json) database.
 package dockage
 
 import (
@@ -10,13 +11,13 @@ import (
 
 //-----------------------------------------------------------------------------
 
-// DB .
+// DB represents a database instance.
 type DB struct {
 	db    *badger.DB
 	views views
 }
 
-// Open .
+// Open opens the database with provided options.
 func Open(opt Options) (_db *DB, _err error) {
 	_opt := badger.DefaultOptions
 	_opt.Dir = opt.Dir
@@ -28,10 +29,11 @@ func Open(opt Options) (_db *DB, _err error) {
 	return &DB{db: bdb}, nil
 }
 
-// Close .
+// Close closes the database.
 func (db *DB) Close() error { return db.db.Close() }
 
-// AddView .
+// AddView adds a view. All views must be added right after Open(...). It
+// is not safe to call this method concurrently.
 func (db *DB) AddView(v View) { db.views = append(db.views, v) }
 
 // DeleteView deletes the data of a view.
@@ -68,7 +70,8 @@ func (db *DB) DeleteView(v string) (_err error) {
 	return
 }
 
-// Put .
+// Put a list of documents inside database, in a single transaction.
+// Document must have a json field named "id".
 func (db *DB) Put(docs ...interface{}) (_err error) {
 	if len(docs) == 0 {
 		return
@@ -96,7 +99,7 @@ func (db *DB) Put(docs ...interface{}) (_err error) {
 	return
 }
 
-// Get .
+// Get a list of documents based on their ids.
 func (db *DB) Get(ids ...string) (_res []KV, _err error) {
 	if len(ids) == 0 {
 		return
@@ -121,7 +124,7 @@ func (db *DB) Get(ids ...string) (_res []KV, _err error) {
 	return
 }
 
-// Delete .
+// Delete a list of documents based on their ids.
 func (db *DB) Delete(ids ...string) (_err error) {
 	if len(ids) == 0 {
 		return
@@ -143,7 +146,9 @@ func (db *DB) Delete(ids ...string) (_err error) {
 	return
 }
 
-// Query .
+// Query queries a view using provided parameters. If no View is provided, it searchs
+// all ids using parameters. Number of results is always limited - default 100 documents.
+// If total count for a query is needed, no documents will be returned.
 func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
 	params.init()
 
