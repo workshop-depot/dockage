@@ -36,12 +36,12 @@ func createDB() *DB {
 	var opts Options
 	opts.Dir = index
 	opts.ValueDir = data
-	_db, err := Open(opts)
+	preppedDB, err := Open(opts)
 	if err != nil {
 		panic(err)
 	}
 
-	return _db
+	return preppedDB
 }
 
 func ExampleDB_Put() {

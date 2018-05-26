@@ -18,11 +18,11 @@ type DB struct {
 }
 
 // Open opens the database with provided options.
-func Open(opt Options) (_db *DB, _err error) {
-	_opt := badger.DefaultOptions
-	_opt.Dir = opt.Dir
-	_opt.ValueDir = opt.ValueDir
-	bdb, err := badger.Open(_opt)
+func Open(opt Options) (resdb *DB, reserr error) {
+	bopt := badger.DefaultOptions
+	bopt.Dir = opt.Dir
+	bopt.ValueDir = opt.ValueDir
+	bdb, err := badger.Open(bopt)
 	if err != nil {
 		return nil, err
 	}
@@ -37,10 +37,10 @@ func (db *DB) Close() error { return db.db.Close() }
 func (db *DB) AddView(v View) { db.views = append(db.views, v) }
 
 // DeleteView deletes the data of a view.
-func (db *DB) DeleteView(v string) (_err error) {
-	name := string(_hash([]byte(v)))
-	prefix := []byte(_pat4View(name))
-	_err = db.db.Update(func(txn *badger.Txn) error {
+func (db *DB) DeleteView(v string) (reserr error) {
+	name := string(fnvhash([]byte(v)))
+	prefix := []byte(pat4View(name))
+	reserr = db.db.Update(func(txn *badger.Txn) error {
 		opt := badger.DefaultIteratorOptions
 		opt.PrefetchValues = false
 		itr := txn.NewIterator(opt)
@@ -72,14 +72,14 @@ func (db *DB) DeleteView(v string) (_err error) {
 
 // Put a list of documents inside database, in a single transaction.
 // Document must have a json field named "id".
-func (db *DB) Put(docs ...interface{}) (_err error) {
+func (db *DB) Put(docs ...interface{}) (reserr error) {
 	if len(docs) == 0 {
 		return
 	}
-	_err = db.db.Update(func(txn *badger.Txn) error {
+	reserr = db.db.Update(func(txn *badger.Txn) error {
 		var builds []KV
 		for _, vdoc := range docs {
-			js, id, err := _prep(vdoc)
+			js, id, err := prepdoc(vdoc)
 			if err != nil {
 				return err
 			}
@@ -100,13 +100,13 @@ func (db *DB) Put(docs ...interface{}) (_err error) {
 }
 
 // Get a list of documents based on their ids.
-func (db *DB) Get(ids ...string) (_res []KV, _err error) {
+func (db *DB) Get(ids ...string) (reslist []KV, reserr error) {
 	if len(ids) == 0 {
 		return
 	}
-	_err = db.db.View(func(txn *badger.Txn) error {
+	reserr = db.db.View(func(txn *badger.Txn) error {
 		for _, vid := range ids {
-			vid := _pat4Key(vid)
+			vid := pat4Key(vid)
 			item, err := txn.Get([]byte(vid))
 			if err != nil {
 				return err
@@ -117,7 +117,7 @@ func (db *DB) Get(ids ...string) (_res []KV, _err error) {
 				return err
 			}
 			k = bytes.TrimPrefix(k, []byte(keysp))
-			_res = append(_res, KV{Key: k, Val: v})
+			reslist = append(reslist, KV{Key: k, Val: v})
 		}
 		return nil
 	})
@@ -125,11 +125,11 @@ func (db *DB) Get(ids ...string) (_res []KV, _err error) {
 }
 
 // Delete a list of documents based on their ids.
-func (db *DB) Delete(ids ...string) (_err error) {
+func (db *DB) Delete(ids ...string) (reserr error) {
 	if len(ids) == 0 {
 		return
 	}
-	_err = db.db.Update(func(txn *badger.Txn) error {
+	reserr = db.db.Update(func(txn *badger.Txn) error {
 		for _, vid := range ids {
 			if err := txn.Delete([]byte(keysp + vid)); err != nil {
 				return err
@@ -149,16 +149,16 @@ func (db *DB) Delete(ids ...string) (_err error) {
 // Query queries a view using provided parameters. If no View is provided, it searches
 // all ids using parameters. Number of results is always limited - default 100 documents.
 // If total count for a query is needed, no documents will be returned.
-func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
+func (db *DB) Query(params Q) (reslist []Res, rescount int, reserr error) {
 	params.init()
 
-	start, end, prefix := _stopWords(params)
+	start, end, prefix := stopWords(params)
 
-	skip, limit, applySkip, applyLimit := _limits(params)
+	skip, limit, applySkip, applyLimit := getlimits(params)
 
 	body := func(itr interface{ Item() *badger.Item }) error {
 		if params.Count {
-			_count++
+			rescount++
 			skip--
 			if applySkip && skip >= 0 {
 				return nil
@@ -211,26 +211,26 @@ func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
 		rs.Key = polishedKey
 		rs.Val = v
 		rs.Index = index
-		_res = append(_res, rs)
+		reslist = append(reslist, rs)
 		return nil
 	}
 
-	_err = db.db.View(func(txn *badger.Txn) error {
+	reserr = db.db.View(func(txn *badger.Txn) error {
 		var opt badger.IteratorOptions
 		opt.PrefetchValues = true
 		opt.PrefetchSize = limit
-		return _itrFunc(txn, opt, start, prefix, body)
+		return itrFunc(txn, opt, start, prefix, body)
 	})
 
-	if _count == 0 {
-		_count = len(_res)
+	if rescount == 0 {
+		rescount = len(reslist)
 	}
 
 	return
 }
 
-func (db *DB) _all() (_res []KV, _err error) {
-	_err = db.db.View(func(txn *badger.Txn) error {
+func (db *DB) unboundAll() (reslist []KV, reserr error) {
+	reserr = db.db.View(func(txn *badger.Txn) error {
 		opt := badger.DefaultIteratorOptions
 		opt.PrefetchValues = false
 		itr := txn.NewIterator(opt)
@@ -244,7 +244,7 @@ func (db *DB) _all() (_res []KV, _err error) {
 			if err != nil {
 				return err
 			}
-			_res = append(_res, kv)
+			reslist = append(reslist, kv)
 		}
 		return nil
 	})

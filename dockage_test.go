@@ -20,7 +20,7 @@ func TestHash(t *testing.T) {
 	require := require.New(t)
 
 	term := "1699dc18-e717-4875-9cea-d736ce3dfa05"
-	h := _hash([]byte(term))
+	h := fnvhash([]byte(term))
 	p := hex.EncodeToString(h)
 	require.Equal("1116235dbc10f81b", p)
 }
@@ -28,9 +28,9 @@ func TestHash(t *testing.T) {
 func TestPat4Veiw(t *testing.T) {
 	require := require.New(t)
 
-	require.Equal(viewsp, _pat4View())
-	require.Equal(viewsp+"KEY", _pat4View("KEY"))
-	require.Equal(viewsp+"KEY"+viewsp+"PART", _pat4View("KEY", "PART"))
+	require.Equal(viewsp, pat4View())
+	require.Equal(viewsp+"KEY", pat4View("KEY"))
+	require.Equal(viewsp+"KEY"+viewsp+"PART", pat4View("KEY", "PART"))
 }
 
 var (
@@ -69,11 +69,11 @@ func initdb() {
 	var opts Options
 	opts.Dir = index
 	opts.ValueDir = data
-	_db, err := Open(opts)
+	preppedDB, err := Open(opts)
 	if err != nil {
 		panic(err)
 	}
-	db = _db
+	db = preppedDB
 }
 
 func TestMain(m *testing.M) {
@@ -118,7 +118,7 @@ func testPutDelete(n int, require *require.Assertions) {
 	}
 	require.NoError(db.Delete(ids...))
 
-	l, err := db._all()
+	l, err := db.unboundAll()
 	require.NoError(err)
 	require.Equal(0, len(l))
 }
@@ -275,13 +275,13 @@ func TestDeleteView(t *testing.T) {
 		require.Equal(k, string(l[i-1].Key))
 	}
 
-	lkv, err := db._all()
+	lkv, err := db.unboundAll()
 	require.NoError(err)
 	require.Equal(N+N*3+N*3, len(lkv))
 
 	require.NoError(db.DeleteView("tags"))
 
-	lkv, err = db._all()
+	lkv, err = db.unboundAll()
 	require.NoError(err)
 	require.Equal(N, len(lkv))
 }

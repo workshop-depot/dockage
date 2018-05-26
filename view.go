@@ -15,29 +15,29 @@ type View struct {
 }
 
 // NewView creates a new View. Function viewFn must have no side effects.
-func NewView(name string, viewFn ViewFn) (_res View) {
+func NewView(name string, viewFn ViewFn) (resview View) {
 	if name == "" {
 		panic("name must be provided")
 	}
 	if viewFn == nil {
 		panic("viewFn must be provided")
 	}
-	_viewFn := func(emitter Emitter, k, v []byte) (inf interface{}, err error) {
+	wrpvFn := func(emitter Emitter, k, v []byte) (inf interface{}, err error) {
 		viewFn(emitter, k, v)
 		return
 	}
-	_res = newView(name, _viewFn)
+	resview = newView(name, wrpvFn)
 	return
 }
 
 func newView(
 	name string,
-	viewFn func(emitter Emitter, k, v []byte) (inf interface{}, err error)) (_res View) {
-	_res = View{
+	viewFn func(emitter Emitter, k, v []byte) (inf interface{}, err error)) (resview View) {
+	resview = View{
 		name:   name,
 		viewFn: viewFn,
 	}
-	_res.hash = string(_hash([]byte(_res.name)))
+	resview.hash = string(fnvhash([]byte(resview.name)))
 	return
 }
 
@@ -54,20 +54,20 @@ type viewEmitter struct {
 	emitted []KV
 }
 
-func newViewEmitter(_tx *transaction, v View) *viewEmitter {
-	return &viewEmitter{txn: _tx, v: v}
+func newViewEmitter(tx *transaction, v View) *viewEmitter {
+	return &viewEmitter{txn: tx, v: v}
 }
 
 func (em *viewEmitter) Emit(viewKey, viewValue []byte) {
 	em.emitted = append(em.emitted, KV{Key: viewKey, Val: viewValue})
 }
 
-func (em *viewEmitter) build(k, v []byte) (_inf interface{}, _err error) {
-	_k2x := _pat4View(em.v.hash + viewk2x)
-	_x2k := _pat4View(em.v.hash + viewx2k)
+func (em *viewEmitter) build(k, v []byte) (resinf interface{}, reserr error) {
+	partk2x := pat4View(em.v.hash + viewk2x)
+	partx2k := pat4View(em.v.hash + viewx2k)
 
-	_markedKey := _pat4View(string(k))
-	_k := _k2x + _markedKey
+	markedKey := pat4View(string(k))
+	preppedk := partk2x + markedKey
 
 	opt := badger.DefaultIteratorOptions
 	opt.PrefetchValues = false
@@ -76,14 +76,14 @@ func (em *viewEmitter) build(k, v []byte) (_inf interface{}, _err error) {
 	txn := em.txn.tx
 	itr := txn.NewIterator(opt)
 	defer itr.Close()
-	prefix := []byte(_k)
+	prefix := []byte(preppedk)
 	var toDelete [][]byte
 	for itr.Seek(prefix); itr.ValidForPrefix(prefix); itr.Next() {
 		item := itr.Item()
 		k := item.KeyCopy(nil)
 		v, err := item.ValueCopy(nil)
 		if err != nil {
-			_err = err
+			reserr = err
 			return
 		}
 		toDelete = append(toDelete, k)
@@ -92,7 +92,7 @@ func (em *viewEmitter) build(k, v []byte) (_inf interface{}, _err error) {
 	for _, v := range toDelete {
 		if err := txn.Delete(v); err != nil {
 			if err != badger.ErrEmptyKey {
-				_err = err
+				reserr = err
 				return
 			}
 		}
@@ -102,19 +102,19 @@ func (em *viewEmitter) build(k, v []byte) (_inf interface{}, _err error) {
 		return
 	}
 
-	_inf, _err = em.v.viewFn(em, k, v)
-	if _err != nil {
+	resinf, reserr = em.v.viewFn(em, k, v)
+	if reserr != nil {
 		return
 	}
 
 	for _, kv := range em.emitted {
-		wix := _pat4View(string(kv.Key))
-		k2x := _k + wix
-		x2k := _x2k + wix + _markedKey
-		if _err = txn.Set([]byte(k2x), []byte(x2k)); _err != nil {
+		wix := pat4View(string(kv.Key))
+		k2x := preppedk + wix
+		x2k := partx2k + wix + markedKey
+		if reserr = txn.Set([]byte(k2x), []byte(x2k)); reserr != nil {
 			return
 		}
-		if _err = txn.Set([]byte(x2k), kv.Val); _err != nil {
+		if reserr = txn.Set([]byte(x2k), kv.Val); reserr != nil {
 			return
 		}
 	}
@@ -126,11 +126,11 @@ func (em *viewEmitter) build(k, v []byte) (_inf interface{}, _err error) {
 
 type views []View
 
-func (vl views) buildAll(tx *transaction, k, v []byte) (_inf interface{}, _err error) {
+func (vl views) buildAll(tx *transaction, k, v []byte) (resinf interface{}, reserr error) {
 	for _, ix := range vl {
 		em := newViewEmitter(tx, ix)
-		_inf, _err = em.build(k, v)
-		if _err != nil {
+		resinf, reserr = em.build(k, v)
+		if reserr != nil {
 			return
 		}
 	}

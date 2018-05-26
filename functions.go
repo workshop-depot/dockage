@@ -9,53 +9,53 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func _prep(doc interface{}) (_js, _id []byte, _err error) {
+func prepdoc(doc interface{}) (resjs, resID []byte, reserr error) {
 	switch x := doc.(type) {
 	case string:
-		_js = []byte(x)
+		resjs = []byte(x)
 	case []byte:
-		_js = x
+		resjs = x
 	default:
 		js, err := json.Marshal(doc)
 		if err != nil {
-			_err = err
+			reserr = err
 			return
 		}
-		_js = js
+		resjs = js
 	}
-	if !gjson.Valid(string(_js)) {
-		_err = ErrInvalidJSONDoc
+	if !gjson.Valid(string(resjs)) {
+		reserr = ErrInvalidJSONDoc
 		return
 	}
-	resid := gjson.Get(string(_js), "id")
+	resid := gjson.Get(string(resjs), "id")
 	if !resid.Exists() {
-		_err = ErrNoID
+		reserr = ErrNoID
 		return
 	}
 	sid := resid.String()
 	if strings.ContainsAny(sid, specials) {
-		_err = ErrInvalidID
+		reserr = ErrInvalidID
 		return
 	}
-	_id = []byte(sid)
+	resID = []byte(sid)
 	return
 }
 
-func _hash(v []byte) []byte {
+func fnvhash(v []byte) []byte {
 	h := fnv.New64a()
 	h.Write(v)
 	return h.Sum(nil)
 }
 
-func _pat4View(s ...string) string {
+func pat4View(s ...string) string {
 	return viewsp + strings.Join(s, viewsp)
 }
 
-func _pat4Key(s ...string) string {
+func pat4Key(s ...string) string {
 	return keysp + strings.Join(s, keysp)
 }
 
-func _limits(params Q) (skip, limit int, applySkip, applyLimit bool) {
+func getlimits(params Q) (skip, limit int, applySkip, applyLimit bool) {
 	skip = params.Skip
 	limit = params.Limit
 	var ()
@@ -71,26 +71,26 @@ func _limits(params Q) (skip, limit int, applySkip, applyLimit bool) {
 	return
 }
 
-func _stopWords(params Q) (start, end, prefix []byte) {
+func stopWords(params Q) (start, end, prefix []byte) {
 	if params.View == "" {
-		start = []byte(_pat4Key(string(params.Start)))
+		start = []byte(pat4Key(string(params.Start)))
 		if len(params.End) > 0 {
-			end = []byte(_pat4Key(string(params.End)))
+			end = []byte(pat4Key(string(params.End)))
 		}
 		if len(params.Prefix) > 0 {
-			prefix = []byte(_pat4Key(string(params.Prefix)))
+			prefix = []byte(pat4Key(string(params.Prefix)))
 		} else {
 			prefix = start
 		}
 	} else {
-		name := string(_hash([]byte(params.View)))
-		pfx := _pat4View(name + viewx2k)
-		start = []byte(pfx + _pat4View(string(params.Start)))
+		name := string(fnvhash([]byte(params.View)))
+		pfx := pat4View(name + viewx2k)
+		start = []byte(pfx + pat4View(string(params.Start)))
 		if len(params.End) > 0 {
-			end = []byte(pfx + _pat4View(string(params.End)))
+			end = []byte(pfx + pat4View(string(params.End)))
 		}
 		if len(params.Prefix) > 0 {
-			prefix = []byte(pfx + _pat4View(string(params.Prefix)))
+			prefix = []byte(pfx + pat4View(string(params.Prefix)))
 		} else {
 			prefix = []byte(pfx)
 		}
@@ -98,7 +98,7 @@ func _stopWords(params Q) (start, end, prefix []byte) {
 	return
 }
 
-func _itrFunc(txn *badger.Txn,
+func itrFunc(txn *badger.Txn,
 	opt badger.IteratorOptions,
 	start, prefix []byte,
 	bodyFunc func(itr interface{ Item() *badger.Item }) error) error {
