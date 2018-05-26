@@ -43,4 +43,4 @@ As it can be seen, for building this view, first we need to extract tags. [`gjso
 
 Using `gjson` we get the `tags` json field by `res := gjson.Get(string(v), "tags")` and if the document has such field, we emit each tag to the view.
 
-Now to find all comments that have a `tech` tag, the view can be queried by `db.Query(Q{View: "tags", Start: []byte("tech")})`.
+Now to find all comments that have a `tech` tag, the view can be queried by `db.Query(Q{View: "tags", Start: []byte("tech")})` - see [complete example](https://godoc.org/github.com/dc0d/dockage#example-View).
