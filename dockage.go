@@ -148,7 +148,8 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 
 // Query queries a view using provided parameters. If no View is provided, it searches
 // all ids using parameters. Number of results is always limited - default 100 documents.
-// If total count for a query is needed, no documents will be returned.
+// If total count for a query is needed by setting params.Count to true, no documents
+// will be returned - because it might be a costly action.
 func (db *DB) Query(params Q) (reslist []Res, rescount int, reserr error) {
 	params.init()
 

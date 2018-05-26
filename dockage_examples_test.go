@@ -107,6 +107,15 @@ func ExampleView() {
 	db := createDB()
 	defer db.Close()
 
+	// gjson is a package that allows to get different fields of a json, even
+	// the nested parts, without unmarshalling it to a Go struct.
+
+	// gjson helps greatly in writing views.
+
+	// em Emitter allows to emit our view index into the view, in this case
+	// the tags of a comment. By emitting tags one by one, it is possible
+	// to query comments based on their tags.
+
 	db.AddView(NewView("tags",
 		func(em Emitter, k, v []byte) {
 			type kv = KV
