@@ -147,9 +147,9 @@ func (db *DB) Delete(ids ...string) (_err error) {
 func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
 	params.init()
 
-	start, end, prefix := stopWords(params)
+	start, end, prefix := _stopWords(params)
 
-	skip, limit, applySkip, applyLimit := limits(params)
+	skip, limit, applySkip, applyLimit := _limits(params)
 
 	body := func(itr interface{ Item() *badger.Item }) error {
 		if params.Count {
@@ -214,7 +214,7 @@ func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
 		var opt badger.IteratorOptions
 		opt.PrefetchValues = true
 		opt.PrefetchSize = limit
-		return itrFunc(txn, opt, start, prefix, body)
+		return _itrFunc(txn, opt, start, prefix, body)
 	})
 
 	if _count == 0 {
@@ -222,63 +222,6 @@ func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
 	}
 
 	return
-}
-
-func limits(params Q) (skip, limit int, applySkip, applyLimit bool) {
-	skip = params.Skip
-	limit = params.Limit
-	var ()
-	if skip > 0 {
-		applySkip = true
-	}
-	if limit <= 0 && !params.Count {
-		limit = 100
-	}
-	if limit > 0 {
-		applyLimit = true
-	}
-	return
-}
-
-func stopWords(params Q) (start, end, prefix []byte) {
-	if params.View == "" {
-		start = []byte(_pat4Key(string(params.Start)))
-		if len(params.End) > 0 {
-			end = []byte(_pat4Key(string(params.End)))
-		}
-		if len(params.Prefix) > 0 {
-			prefix = []byte(_pat4Key(string(params.Prefix)))
-		} else {
-			prefix = start
-		}
-	} else {
-		name := string(_hash([]byte(params.View)))
-		pfx := _pat4View(name + viewx2k)
-		start = []byte(pfx + _pat4View(string(params.Start)))
-		if len(params.End) > 0 {
-			end = []byte(pfx + _pat4View(string(params.End)))
-		}
-		if len(params.Prefix) > 0 {
-			prefix = []byte(pfx + _pat4View(string(params.Prefix)))
-		} else {
-			prefix = []byte(pfx)
-		}
-	}
-	return
-}
-
-func itrFunc(txn *badger.Txn,
-	opt badger.IteratorOptions,
-	start, prefix []byte,
-	bodyFunc func(itr interface{ Item() *badger.Item }) error) error {
-	itr := txn.NewIterator(opt)
-	defer itr.Close()
-	for itr.Seek(start); itr.ValidForPrefix(prefix); itr.Next() {
-		if err := bodyFunc(itr); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (db *DB) _all() (_res []KV, _err error) {

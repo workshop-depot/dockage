@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"strings"
 
+	"github.com/dgraph-io/badger"
 	"github.com/tidwall/gjson"
 )
 
@@ -52,4 +53,61 @@ func _pat4View(s ...string) string {
 
 func _pat4Key(s ...string) string {
 	return keysp + strings.Join(s, keysp)
+}
+
+func _limits(params Q) (skip, limit int, applySkip, applyLimit bool) {
+	skip = params.Skip
+	limit = params.Limit
+	var ()
+	if skip > 0 {
+		applySkip = true
+	}
+	if limit <= 0 && !params.Count {
+		limit = 100
+	}
+	if limit > 0 {
+		applyLimit = true
+	}
+	return
+}
+
+func _stopWords(params Q) (start, end, prefix []byte) {
+	if params.View == "" {
+		start = []byte(_pat4Key(string(params.Start)))
+		if len(params.End) > 0 {
+			end = []byte(_pat4Key(string(params.End)))
+		}
+		if len(params.Prefix) > 0 {
+			prefix = []byte(_pat4Key(string(params.Prefix)))
+		} else {
+			prefix = start
+		}
+	} else {
+		name := string(_hash([]byte(params.View)))
+		pfx := _pat4View(name + viewx2k)
+		start = []byte(pfx + _pat4View(string(params.Start)))
+		if len(params.End) > 0 {
+			end = []byte(pfx + _pat4View(string(params.End)))
+		}
+		if len(params.Prefix) > 0 {
+			prefix = []byte(pfx + _pat4View(string(params.Prefix)))
+		} else {
+			prefix = []byte(pfx)
+		}
+	}
+	return
+}
+
+func _itrFunc(txn *badger.Txn,
+	opt badger.IteratorOptions,
+	start, prefix []byte,
+	bodyFunc func(itr interface{ Item() *badger.Item }) error) error {
+	itr := txn.NewIterator(opt)
+	defer itr.Close()
+	for itr.Seek(start); itr.ValidForPrefix(prefix); itr.Next() {
+		if err := bodyFunc(itr); err != nil {
+			return err
+		}
+	}
+	return nil
 }
