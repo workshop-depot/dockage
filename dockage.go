@@ -146,7 +146,7 @@ func (db *DB) Delete(ids ...string) (_err error) {
 	return
 }
 
-// Query queries a view using provided parameters. If no View is provided, it searchs
+// Query queries a view using provided parameters. If no View is provided, it searches
 // all ids using parameters. Number of results is always limited - default 100 documents.
 // If total count for a query is needed, no documents will be returned.
 func (db *DB) Query(params Q) (_res []Res, _count int, _err error) {
