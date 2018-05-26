@@ -1,6 +1,7 @@
 package dockage
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -496,4 +497,65 @@ func ExampleDB_Get() {
 	// CMNT::002 Hi! Frodo Baggins
 	// <nil>
 	// CMNT::003 Hi! Frodo Baggins
+}
+
+func ExampleView_timestampInt64() {
+	db := createDB()
+	defer db.Close()
+
+	type comment struct {
+		ID   string   `json:"id,omitempty"`
+		By   string   `json:"by,omitempty"`
+		Text string   `json:"text,omitempty"`
+		At   int64    `json:"at,omitempty"`
+		Tags []string `json:"tags,omitempty"`
+	}
+
+	db.AddView(NewView("by_time",
+		func(em Emitter, k, v []byte) {
+			type kv = KV
+			res := gjson.Get(string(v), "at")
+			if !res.Exists() {
+				return
+			}
+			t := res.Int()
+			ts := make([]byte, 8)
+			binary.BigEndian.PutUint64(ts, uint64(t))
+			em.Emit(ts, nil)
+			return
+		}))
+
+	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
+	startTS := at.Unix()
+	first := startTS
+	var list []interface{}
+	for i := 1; i <= 3; i++ {
+		cmnt := comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   startTS,
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		at = at.Add(time.Hour * 24)
+		startTS = at.Unix()
+	}
+	fmt.Println(db.Put(list...))
+
+	start := make([]byte, 8)
+	binary.BigEndian.PutUint64(start, uint64(first))
+	res, err := db.Query(Q{View: "by_time", Start: start})
+	fmt.Println(err)
+
+	for _, v := range res {
+		fmt.Printf("%s %s %x\n", v.Key, v.Val, v.Index)
+	}
+
+	// Output:
+	// <nil>
+	// <nil>
+	// CMNT::001  000000005a49f188
+	// CMNT::002  000000005a4b4308
+	// CMNT::003  000000005a4c9488
 }
