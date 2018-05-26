@@ -231,7 +231,7 @@ func limits(params Q) (skip, limit int, applySkip, applyLimit bool) {
 	if skip > 0 {
 		applySkip = true
 	}
-	if limit <= 0 {
+	if limit <= 0 && !params.Count {
 		limit = 100
 	}
 	if limit > 0 {
