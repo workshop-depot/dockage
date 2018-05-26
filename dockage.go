@@ -3,6 +3,7 @@ package dockage
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/dgraph-io/badger"
 )
@@ -302,6 +303,12 @@ type Options struct {
 var (
 	ErrInvalidJSONDoc = errors.New("invalid json doc")
 	ErrNoID           = errors.New("no id in doc")
+	ErrInvalidID      = fmt.Errorf("id must not contain these characters: %s %s %s %s %s",
+		viewsp,
+		keysp,
+		syssp,
+		viewk2x,
+		viewx2k)
 )
 
 //-----------------------------------------------------------------------------

@@ -31,7 +31,12 @@ func _prep(doc interface{}) (_js, _id []byte, _err error) {
 		_err = ErrNoID
 		return
 	}
-	_id = []byte(resid.String())
+	sid := resid.String()
+	if strings.ContainsAny(sid, specials) {
+		_err = ErrInvalidID
+		return
+	}
+	_id = []byte(sid)
 	return
 }
 

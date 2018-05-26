@@ -18,4 +18,10 @@ const (
 
 	viewk2x = ">"
 	viewx2k = "<"
+
+	specials = viewsp +
+		keysp +
+		syssp +
+		viewk2x +
+		viewx2k
 )
