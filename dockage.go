@@ -170,7 +170,7 @@ func (db *DB) Query(params Q) (_res []Res, _err error) {
 		if len(params.Prefix) > 0 {
 			prefix = []byte(pfx + _pat4View(string(params.Prefix)))
 		} else {
-			prefix = start
+			prefix = []byte(pfx)
 		}
 	}
 

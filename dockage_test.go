@@ -226,7 +226,7 @@ func TestView(t *testing.T) {
 
 	l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002")})
 	require.NoError(err)
-	require.Equal(5, len(l))
+	require.Equal(10, len(l))
 
 	l, err = ddb.Query(Q{View: "tags", Start: []byte("TAG002"), Prefix: []byte("TAG00")})
 	require.NoError(err)
