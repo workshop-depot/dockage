@@ -9,7 +9,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func prepdoc(doc interface{}) (resjs, resID []byte, reserr error) {
+func prepdoc(doc interface{}) (resjs, resID, resRev []byte, reserr error) {
 	switch x := doc.(type) {
 	case string:
 		resjs = []byte(x)
@@ -38,6 +38,12 @@ func prepdoc(doc interface{}) (resjs, resID []byte, reserr error) {
 		return
 	}
 	resID = []byte(sid)
+	resrev := gjson.Get(string(resjs), "rev")
+	if !resrev.Exists() {
+		reserr = ErrNoRev
+		return
+	}
+	resRev = []byte(resrev.String())
 	return
 }
 

@@ -513,7 +513,8 @@ func ExampleView_timestampInt64() {
 	defer db.Close()
 
 	type comment struct {
-		ID   string   `json:"id,omitempty"`
+		ID   string   `json:"id"`
+		Rev  string   `json:"rev"`
 		By   string   `json:"by,omitempty"`
 		Text string   `json:"text,omitempty"`
 		At   int64    `json:"at,omitempty"`

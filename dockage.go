@@ -4,10 +4,10 @@ package dockage
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
-	"fmt"
+	"encoding/hex"
 
 	"github.com/dgraph-io/badger"
+	"github.com/tidwall/sjson"
 )
 
 //-----------------------------------------------------------------------------
@@ -43,6 +43,7 @@ func Open(opt Options) (resdb *DB, reserr error) {
 			}
 			ix := make([]byte, 8)
 			binary.BigEndian.PutUint64(ix, sq)
+			ix = []byte(hex.EncodeToString(ix))
 			em.Emit(ix, nil)
 			return ix, nil
 		})
@@ -102,10 +103,37 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 	reserr = db.db.Update(func(txn *badger.Txn) error {
 		var builds []KV
 		for _, vdoc := range docs {
-			js, id, err := prepdoc(vdoc)
+
+			js, id, rev, err := prepdoc(vdoc)
 			if err != nil {
 				return err
 			}
+
+			qres, _, qerr := db.queryView(Q{View: viewdbseq, Start: id, Prefix: id}, txn, true)
+			if qerr != nil {
+				return qerr
+			}
+			if len(rev) == 0 {
+				if len(qres) > 0 {
+					if bytes.Compare(qres[0].Key, rev) != 0 {
+						return ErrNoMatchRev
+					}
+				}
+			} else if bytes.Compare(qres[0].Key, rev) != 0 {
+				return ErrNoMatchRev
+			}
+			em := newViewEmitter(newTransaction(txn), db.sqView)
+			resinf, reserr := em.build(id, js)
+			if reserr != nil {
+				return reserr
+			}
+			rev = resinf.([]byte)
+			strjs, err := sjson.Set(string(js), "rev", string(rev))
+			if err != nil {
+				return err
+			}
+			js = []byte(strjs)
+
 			if err := txn.Set(append([]byte(keysp), id...), js); err != nil {
 				return err
 			}
@@ -153,6 +181,7 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 		return
 	}
 	reserr = db.db.Update(func(txn *badger.Txn) error {
+		var viewList views = append([]View{db.sqView}, db.views...)
 		for _, vid := range ids {
 			if err := txn.Delete([]byte(keysp + vid)); err != nil {
 				return err
@@ -160,7 +189,7 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 		}
 		for _, vid := range ids {
 			tx := newTransaction(txn)
-			if _, err := db.views.buildAll(tx, []byte(vid), nil); err != nil {
+			if _, err := viewList.buildAll(tx, []byte(vid), nil); err != nil {
 				return err
 			}
 		}
@@ -312,19 +341,5 @@ type Options struct {
 	// exist and be writable.
 	ValueDir string
 }
-
-//-----------------------------------------------------------------------------
-
-// sentinel errors
-var (
-	ErrInvalidJSONDoc = errors.New("invalid json doc")
-	ErrNoID           = errors.New("no id in doc")
-	ErrInvalidID      = fmt.Errorf("id must not contain these characters: %s %s %s %s %s",
-		viewsp,
-		keysp,
-		syssp,
-		viewk2x,
-		viewx2k)
-)
 
 //-----------------------------------------------------------------------------

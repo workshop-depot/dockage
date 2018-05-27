@@ -1,12 +1,15 @@
 package dockage
 
 import (
+	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -87,7 +90,8 @@ func TestMain(m *testing.M) {
 }
 
 type comment struct {
-	ID   string    `json:"id,omitempty"`
+	ID   string    `json:"id"`
+	Rev  string    `json:"rev"`
 	By   string    `json:"by,omitempty"`
 	Text string    `json:"text,omitempty"`
 	At   time.Time `json:"at,omitempty"`
@@ -97,30 +101,36 @@ type comment struct {
 func TestPutDelete(t *testing.T) {
 	require := require.New(t)
 
-	for i := 0; i < 10; i++ {
-		n := rand.Intn(1000)
-		testPutDelete(n, require)
+	wg := new(sync.WaitGroup)
+	for i := 0; i < 100; i++ {
+		i := i
+		n := rand.Intn(100)
+		wg.Add(1)
+		go testPutDelete(wg, i*100, n, require)
 	}
+
+	wg.Wait()
+
+	l, err := db.unboundAll()
+	require.NoError(err)
+	require.Equal(0+1 /* dbseq */, len(l))
 }
 
-func testPutDelete(n int, require *require.Assertions) {
+func testPutDelete(wg *sync.WaitGroup, start, n int, require *require.Assertions) {
+	defer wg.Done()
 	var list []interface{}
-	for i := 1; i <= n; i++ {
+	for i := start; i <= start+n; i++ {
 		k, v := fmt.Sprintf("D%06d", i), fmt.Sprintf("V%06d", i)
 		list = append(list, comment{ID: k, Text: v, At: time.Now()})
 	}
 	require.NoError(db.Put(list...))
 
 	var ids []string
-	for i := 1; i <= n; i++ {
+	for i := start; i <= start+n; i++ {
 		k := fmt.Sprintf("D%06d", i)
 		ids = append(ids, k)
 	}
 	require.NoError(db.Delete(ids...))
-
-	l, err := db.unboundAll()
-	require.NoError(err)
-	require.Equal(0+1 /* dbseq */, len(l))
 }
 
 func TestSmoke(t *testing.T) {
@@ -275,13 +285,89 @@ func TestDeleteView(t *testing.T) {
 		require.Equal(k, string(l[i-1].Key))
 	}
 
-	lkv, err := db.unboundAll()
+	l, _, err = db.Query(Q{Limit: 1000000, View: "tags"})
 	require.NoError(err)
-	require.Equal(N+N*3+N*3+1 /* dbseq */, len(lkv))
+	require.Equal(N*3, len(l))
 
 	require.NoError(db.DeleteView("tags"))
 
-	lkv, err = db.unboundAll()
+	l, _, err = db.Query(Q{Limit: 1000000, View: "tags"})
 	require.NoError(err)
-	require.Equal(N+1 /* dbseq */, len(lkv))
+	require.Equal(0, len(l))
+}
+
+func TestRevPut(t *testing.T) {
+	require := require.New(t)
+
+	c := comment{ID: "C4", Text: "Hi!"}
+
+	require.NoError(db.Put(c))
+
+	{
+		res, err := db.Get("C4")
+		require.NoError(err)
+		require.Equal(1, len(res))
+		fst := res[0]
+		require.Equal("C4", string(fst.Key))
+		require.NoError(json.Unmarshal(fst.Val, &c))
+	}
+
+	rev1 := c.Rev
+
+	c.Rev = "QQ"
+	require.Equal(ErrNoMatchRev, db.Put(c))
+
+	c.Rev = ""
+	require.Equal(ErrNoMatchRev, db.Put(c))
+
+	{
+		res, err := db.Get("C4")
+		require.NoError(err)
+		require.Equal(1, len(res))
+		fst := res[0]
+		require.Equal("C4", string(fst.Key))
+		require.NoError(json.Unmarshal(fst.Val, &c))
+	}
+
+	c.Text = "EDIT 01"
+	require.NoError(db.Put(c))
+
+	{
+		res, err := db.Get("C4")
+		require.NoError(err)
+		require.Equal(1, len(res))
+		fst := res[0]
+		require.Equal("C4", string(fst.Key))
+		require.NoError(json.Unmarshal(fst.Val, &c))
+	}
+	require.Equal("EDIT 01", c.Text)
+
+	rev2 := c.Rev
+
+	require.True(bytes.Compare([]byte(rev2), []byte(rev1)) > 0)
+}
+
+func TestRevPut2(t *testing.T) {
+	require := require.New(t)
+
+	require.NoError(db.Delete("C4"))
+
+	c := comment{ID: "C4"}
+	var prevRev []byte
+	for i := 0; i < 10; i++ {
+		c.Text = fmt.Sprintf("Hi! %d", i)
+		require.NoError(db.Put(c))
+		res, err := db.Get("C4")
+		require.NoError(err)
+		require.Equal(1, len(res))
+		fst := res[0]
+		require.Equal("C4", string(fst.Key))
+		require.NoError(json.Unmarshal(fst.Val, &c))
+
+		rev := []byte(c.Rev)
+		if len(prevRev) > 0 {
+			require.True(bytes.Compare(rev, prevRev) > 0)
+		}
+		prevRev = rev
+	}
 }
