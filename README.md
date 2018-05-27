@@ -3,6 +3,11 @@
 # dockage
 This is an embedded document/json store based on [badger](https://github.com/dgraph-io/badger) key-value store - WIP, alpha quality.
 
+# word
+
++ Document `id` must be database-wide unique. There is no notion of grouping documents (tables, collections, buckets, etc).
++ `id` and `rev` are mandatory fields that must be present inside document json.
+
 # intro
 
 Views play the role of indices. In a tradition RDBMS there are only predefined indices: a numeric index, a time index, a text index, etc.
@@ -13,11 +18,12 @@ For example we need to put some comments into the database:
 
 ```go
 type comment struct {
-	ID   string    `json:"id,omitempty"`
-	By   string    `json:"by,omitempty"`
-	Text string    `json:"text,omitempty"`
-	At   time.Time `json:"at,omitempty"`
-	Tags []string  `json:"tags,omitempty"`
+    ID   string    `json:"id"`
+    Rev  string    `json:"rev"`
+    By   string    `json:"by,omitempty"`
+    Text string    `json:"text,omitempty"`
+    At   time.Time `json:"at,omitempty"`
+    Tags []string  `json:"tags,omitempty"`
 }
 ```
 

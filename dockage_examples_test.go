@@ -78,6 +78,72 @@ func ExampleDB_Put() {
 	// [tech golang]
 }
 
+func ExampleDB_cas() {
+	// CAS is performed using a mandatory rev field inside json document.
+
+	db := createDB()
+	defer db.Close()
+
+	docID := "CMNT::001"
+
+	cmnt := comment{
+		ID:   docID,
+		By:   "Frodo Baggins",
+		Text: "Hi!",
+		At:   time.Now(),
+		Tags: []string{"tech", "golang"},
+	}
+
+	fmt.Println(db.Put(cmnt))
+
+	res, err := db.Get(docID)
+	fmt.Println(err)
+	fmt.Println(json.Unmarshal(res[0].Val, &cmnt))
+
+	fmt.Println(cmnt.ID)
+	fmt.Println(cmnt.By)
+	fmt.Println(cmnt.Text)
+	fmt.Println(cmnt.Tags)
+	fmt.Println(cmnt.Rev)
+
+	rev := cmnt.Rev
+	cmnt.Rev = "dummy"
+	fmt.Println("error:", db.Put(cmnt))
+
+	cmnt.Rev = rev
+	cmnt.Text = "Back again!"
+	fmt.Println(db.Put(cmnt))
+
+	res, err = db.Get(docID)
+	fmt.Println(err)
+	fmt.Println(json.Unmarshal(res[0].Val, &cmnt))
+
+	fmt.Println(cmnt.ID)
+	fmt.Println(cmnt.By)
+	fmt.Println(cmnt.Text)
+	fmt.Println(cmnt.Tags)
+	fmt.Println(cmnt.Rev)
+
+	// Output:
+	// <nil>
+	// <nil>
+	// <nil>
+	// CMNT::001
+	// Frodo Baggins
+	// Hi!
+	// [tech golang]
+	// 0000000000000000
+	// error: rev field in doc json not matching
+	// <nil>
+	// <nil>
+	// <nil>
+	// CMNT::001
+	// Frodo Baggins
+	// Back again!
+	// [tech golang]
+	// 0000000000000001
+}
+
 func ExampleDB_Delete() {
 	db := createDB()
 	defer db.Close()
