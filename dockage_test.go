@@ -120,7 +120,7 @@ func testPutDelete(n int, require *require.Assertions) {
 
 	l, err := db.unboundAll()
 	require.NoError(err)
-	require.Equal(0, len(l))
+	require.Equal(0+1 /* dbseq */, len(l))
 }
 
 func TestSmoke(t *testing.T) {
@@ -277,11 +277,11 @@ func TestDeleteView(t *testing.T) {
 
 	lkv, err := db.unboundAll()
 	require.NoError(err)
-	require.Equal(N+N*3+N*3, len(lkv))
+	require.Equal(N+N*3+N*3+1 /* dbseq */, len(lkv))
 
 	require.NoError(db.DeleteView("tags"))
 
 	lkv, err = db.unboundAll()
 	require.NoError(err)
-	require.Equal(N, len(lkv))
+	require.Equal(N+1 /* dbseq */, len(lkv))
 }

@@ -3,6 +3,7 @@ package dockage
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 
@@ -13,8 +14,10 @@ import (
 
 // DB represents a database instance.
 type DB struct {
-	db    *badger.DB
-	views views
+	db     *badger.DB
+	views  views
+	sqView View
+	sq     *badger.Sequence
 }
 
 // Open opens the database with provided options.
@@ -26,11 +29,31 @@ func Open(opt Options) (resdb *DB, reserr error) {
 	if err != nil {
 		return nil, err
 	}
-	return &DB{db: bdb}, nil
+	sq, err := bdb.GetSequence([]byte(pat4Sys(dbseq)), 512)
+	if err != nil {
+		reserr = err
+		return
+	}
+	resdb = &DB{db: bdb, sq: sq}
+	resdb.sqView = newView(viewdbseq,
+		func(em Emitter, k, v []byte) (inf interface{}, err error) {
+			sq, err := resdb.sq.Next()
+			if err != nil {
+				return nil, err
+			}
+			ix := make([]byte, 8)
+			binary.BigEndian.PutUint64(ix, sq)
+			em.Emit(ix, nil)
+			return ix, nil
+		})
+	return
 }
 
 // Close closes the database.
-func (db *DB) Close() error { return db.db.Close() }
+func (db *DB) Close() error {
+	db.sq.Release()
+	return db.db.Close()
+}
 
 // AddView adds a view. All views must be added right after Open(...). It
 // is not safe to call this method concurrently.
@@ -151,9 +174,14 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 // If total count for a query is needed by setting params.Count to true, no documents
 // will be returned - because it might be a costly action.
 func (db *DB) Query(params Q) (reslist []Res, rescount int, reserr error) {
+	reslist, rescount, reserr = db.queryView(params, nil)
+	return
+}
+
+func (db *DB) queryView(params Q, parentTxn *badger.Txn, forIndexedKeys ...bool) (reslist []Res, rescount int, reserr error) {
 	params.init()
 
-	start, end, prefix := stopWords(params)
+	start, end, prefix := stopWords(params, forIndexedKeys...)
 
 	skip, limit, applySkip, applyLimit := getlimits(params)
 
@@ -216,13 +244,17 @@ func (db *DB) Query(params Q) (reslist []Res, rescount int, reserr error) {
 		return nil
 	}
 
-	reserr = db.db.View(func(txn *badger.Txn) error {
+	qfn := func(txn *badger.Txn) error {
 		var opt badger.IteratorOptions
 		opt.PrefetchValues = true
 		opt.PrefetchSize = limit
 		return itrFunc(txn, opt, start, prefix, body)
-	})
-
+	}
+	if parentTxn == nil {
+		reserr = db.db.View(qfn)
+	} else {
+		reserr = qfn(parentTxn)
+	}
 	if rescount == 0 {
 		rescount = len(reslist)
 	}

@@ -55,6 +55,10 @@ func pat4Key(s ...string) string {
 	return keysp + strings.Join(s, keysp)
 }
 
+func pat4Sys(s ...string) string {
+	return syssp + strings.Join(s, syssp)
+}
+
 func getlimits(params Q) (skip, limit int, applySkip, applyLimit bool) {
 	skip = params.Skip
 	limit = params.Limit
@@ -71,7 +75,7 @@ func getlimits(params Q) (skip, limit int, applySkip, applyLimit bool) {
 	return
 }
 
-func stopWords(params Q) (start, end, prefix []byte) {
+func stopWords(params Q, forIndexedKeys ...bool) (start, end, prefix []byte) {
 	if params.View == "" {
 		start = []byte(pat4Key(string(params.Start)))
 		if len(params.End) > 0 {
@@ -84,7 +88,11 @@ func stopWords(params Q) (start, end, prefix []byte) {
 		}
 	} else {
 		name := string(fnvhash([]byte(params.View)))
-		pfx := pat4View(name + viewx2k)
+		domain := viewx2k
+		if len(forIndexedKeys) > 0 && forIndexedKeys[0] {
+			domain = viewk2x
+		}
+		pfx := pat4View(name + domain)
 		start = []byte(pfx + pat4View(string(params.Start)))
 		if len(params.End) > 0 {
 			end = []byte(pfx + pat4View(string(params.End)))

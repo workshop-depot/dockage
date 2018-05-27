@@ -26,4 +26,7 @@ const (
 		syssp +
 		viewk2x +
 		viewx2k
+
+	dbseq     = "db_timestamp"
+	viewdbseq = "view_db_timestamp"
 )
