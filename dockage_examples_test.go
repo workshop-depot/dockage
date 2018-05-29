@@ -183,9 +183,9 @@ func ExampleView() {
 	// to query comments based on their tags.
 
 	db.AddView(NewView("tags",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "tags")
+			res := gjson.Get(iv.JSON, "tags")
 			if !res.Exists() {
 				return
 			}
@@ -229,9 +229,9 @@ func ExampleView_byTime() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -280,9 +280,9 @@ func ExampleView_viewVal() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -290,7 +290,7 @@ func ExampleView_viewVal() {
 			if t.IsZero() {
 				return
 			}
-			res = gjson.Get(string(v), "by")
+			res = gjson.Get(iv.JSON, "by")
 			if !res.Exists() {
 				return
 			}
@@ -335,9 +335,9 @@ func ExampleView_limit() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -384,9 +384,9 @@ func ExampleView_end() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -435,9 +435,9 @@ func ExampleView_endAll() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -487,9 +487,9 @@ func ExampleView_skip() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -588,9 +588,9 @@ func ExampleView_timestampInt64() {
 	}
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "at")
+			res := gjson.Get(iv.JSON, "at")
 			if !res.Exists() {
 				return
 			}
@@ -641,9 +641,9 @@ func ExampleView_count() {
 	defer db.Close()
 
 	db.AddView(NewView("tags",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "tags")
+			res := gjson.Get(iv.JSON, "tags")
 			if !res.Exists() {
 				return
 			}

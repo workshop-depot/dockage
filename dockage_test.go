@@ -190,9 +190,9 @@ func TestView(t *testing.T) {
 	ddb := db
 	ddb.AddView(NewView(
 		"tags",
-		func(em Emitter, k, v []byte) {
+		func(em Emitter, iv V) {
 			type kv = KV
-			res := gjson.Get(string(v), "tags")
+			res := gjson.Get(iv.JSON, "tags")
 			res.ForEach(func(pk, pv gjson.Result) bool {
 				em.Emit([]byte(pv.String()), nil)
 				return true

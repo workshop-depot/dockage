@@ -36,7 +36,7 @@ func Open(opt Options) (resdb *DB, reserr error) {
 	}
 	resdb = &DB{db: bdb, sq: sq}
 	resdb.sqView = newView(viewdbseq,
-		func(em Emitter, k, v []byte) (inf interface{}, err error) {
+		func(em Emitter, iv V) (inf interface{}, err error) {
 			sq, err := resdb.sq.Next()
 			if err != nil {
 				return nil, err
@@ -101,9 +101,8 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 		return
 	}
 	reserr = db.db.Update(func(txn *badger.Txn) error {
-		var builds []KV
+		var builds []V
 		for _, vdoc := range docs {
-
 			js, id, rev, err := prepdoc(vdoc)
 			if err != nil {
 				return err
@@ -123,7 +122,7 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 				return ErrNoMatchRev
 			}
 			em := newViewEmitter(newTransaction(txn), db.sqView)
-			resinf, reserr := em.build(id, js)
+			resinf, reserr := em.build(V{ID: string(id), JSON: string(js), Doc: vdoc})
 			if reserr != nil {
 				return reserr
 			}
@@ -137,11 +136,11 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 			if err := txn.Set(append([]byte(keysp), id...), js); err != nil {
 				return err
 			}
-			builds = append(builds, KV{Key: id, Val: js})
+			builds = append(builds, V{ID: string(id), JSON: string(js), Doc: vdoc})
 		}
 		for _, v := range builds {
 			tx := newTransaction(txn)
-			if _, err := db.views.buildAll(tx, v.Key, v.Val); err != nil {
+			if _, err := db.views.buildAll(tx, v); err != nil {
 				return err
 			}
 		}
@@ -189,7 +188,7 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 		}
 		for _, vid := range ids {
 			tx := newTransaction(txn)
-			if _, err := viewList.buildAll(tx, []byte(vid), nil); err != nil {
+			if _, err := viewList.buildAll(tx, V{ID: vid}); err != nil {
 				return err
 			}
 		}
