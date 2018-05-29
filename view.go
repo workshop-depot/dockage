@@ -4,13 +4,14 @@ import "github.com/dgraph-io/badger"
 
 //-----------------------------------------------------------------------------
 
-// ViewFn function that generates view keys (and values).
-type ViewFn func(emitter Emitter, k, v []byte)
+// ViewFn function that emits view keys (and json docs as view values).
+// Must leave id and docJSON intact.
+type ViewFn func(emitter Emitter, id, docJSON []byte)
 
 // View is a calculated, persistent index.
 type View struct {
 	name   string
-	viewFn func(emitter Emitter, k, v []byte) (inf interface{}, err error)
+	viewFn func(emitter Emitter, id, docJSON []byte) (inf interface{}, err error)
 	hash   string
 }
 
@@ -22,8 +23,8 @@ func NewView(name string, viewFn ViewFn) (resview View) {
 	if viewFn == nil {
 		panic("viewFn must be provided")
 	}
-	wrpvFn := func(emitter Emitter, k, v []byte) (inf interface{}, err error) {
-		viewFn(emitter, k, v)
+	wrpvFn := func(emitter Emitter, id, docJSON []byte) (inf interface{}, err error) {
+		viewFn(emitter, id, docJSON)
 		return
 	}
 	resview = newView(name, wrpvFn)
@@ -32,7 +33,7 @@ func NewView(name string, viewFn ViewFn) (resview View) {
 
 func newView(
 	name string,
-	viewFn func(emitter Emitter, k, v []byte) (inf interface{}, err error)) (resview View) {
+	viewFn func(emitter Emitter, id, docJSON []byte) (inf interface{}, err error)) (resview View) {
 	resview = View{
 		name:   name,
 		viewFn: viewFn,
@@ -62,11 +63,11 @@ func (em *viewEmitter) Emit(viewKey, viewValue []byte) {
 	em.emitted = append(em.emitted, KV{Key: viewKey, Val: viewValue})
 }
 
-func (em *viewEmitter) build(k, v []byte) (resinf interface{}, reserr error) {
+func (em *viewEmitter) build(id, docJSON []byte) (resinf interface{}, reserr error) {
 	partk2x := pat4View(em.v.hash + viewk2x)
 	partx2k := pat4View(em.v.hash + viewx2k)
 
-	markedKey := pat4View(string(k))
+	markedKey := pat4View(string(id))
 	preppedk := partk2x + markedKey
 
 	opt := badger.DefaultIteratorOptions
@@ -98,11 +99,11 @@ func (em *viewEmitter) build(k, v []byte) (resinf interface{}, reserr error) {
 		}
 	}
 
-	if v == nil {
+	if docJSON == nil {
 		return
 	}
 
-	resinf, reserr = em.v.viewFn(em, k, v)
+	resinf, reserr = em.v.viewFn(em, id, docJSON)
 	if reserr != nil {
 		return
 	}
@@ -126,10 +127,10 @@ func (em *viewEmitter) build(k, v []byte) (resinf interface{}, reserr error) {
 
 type views []View
 
-func (vl views) buildAll(tx *transaction, k, v []byte) (resinf interface{}, reserr error) {
+func (vl views) buildAll(tx *transaction, id, docJSON []byte) (resinf interface{}, reserr error) {
 	for _, ix := range vl {
 		em := newViewEmitter(tx, ix)
-		resinf, reserr = em.build(k, v)
+		resinf, reserr = em.build(id, docJSON)
 		if reserr != nil {
 			return
 		}
