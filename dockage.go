@@ -95,7 +95,7 @@ func (db *DB) DeleteView(v string) (reserr error) {
 }
 
 // Put a list of documents inside database, in a single transaction.
-// Document must have a json field named "id".
+// Document must have a json field named "id" and  a json field named "rev".
 func (db *DB) Put(docs ...interface{}) (reserr error) {
 	if len(docs) == 0 {
 		return
