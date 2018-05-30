@@ -3,7 +3,6 @@ package dockage
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -304,12 +303,13 @@ func TestRevPut(t *testing.T) {
 	require.NoError(db.Put(c))
 
 	{
-		res, err := db.Get("C4")
+		var res []comment
+		err := db.Get(&res, "C4")
 		require.NoError(err)
 		require.Equal(1, len(res))
 		fst := res[0]
-		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, c))
+		require.Equal("C4", string(fst.ID))
+		*c = fst
 	}
 
 	rev1 := c.Rev
@@ -321,24 +321,26 @@ func TestRevPut(t *testing.T) {
 	require.Equal(ErrNoMatchRev, db.Put(c))
 
 	{
-		res, err := db.Get("C4")
+		var res []comment
+		err := db.Get(&res, "C4")
 		require.NoError(err)
 		require.Equal(1, len(res))
 		fst := res[0]
-		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, c))
+		require.Equal("C4", string(fst.ID))
+		*c = fst
 	}
 
 	c.Text = "EDIT 01"
 	require.NoError(db.Put(c))
 
 	{
-		res, err := db.Get("C4")
+		var res []comment
+		err := db.Get(&res, "C4")
 		require.NoError(err)
 		require.Equal(1, len(res))
 		fst := res[0]
-		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, c))
+		require.Equal("C4", string(fst.ID))
+		*c = fst
 	}
 	require.Equal("EDIT 01", c.Text)
 
@@ -357,14 +359,13 @@ func TestRevPut2(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		c.Text = fmt.Sprintf("Hi! %d", i)
 		require.NoError(db.Put(c))
-		res, err := db.Get("C4")
+		var res []comment
+		err := db.Get(&res, "C4")
 		require.NoError(err)
 		require.Equal(1, len(res))
 		fst := res[0]
-		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, &c))
-
-		rev := []byte(c.Rev)
+		require.Equal("C4", string(fst.ID))
+		rev := []byte(fst.Rev)
 		if len(prevRev) > 0 {
 			require.True(bytes.Compare(rev, prevRev) > 0)
 		}
@@ -412,4 +413,32 @@ func TestInspector(t *testing.T) {
 
 	require.Equal("100", ins.id)
 	require.Equal("R-100", ins.rev.Value())
+}
+
+func TestGet2(t *testing.T) {
+	require := require.New(t)
+	db := createDB()
+	defer db.Close()
+
+	var list []interface{}
+	var ids []string
+	for i := 1; i <= 3; i++ {
+		cmnt := &comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   time.Now(),
+			Tags: []string{"tech", "golang"},
+		}
+		list = append(list, cmnt)
+		ids = append(ids, cmnt.ID)
+	}
+	require.NoError(db.Put(list...))
+
+	var result []comment
+	require.NoError(db.Get(&result, ids[0], ids[1:]...))
+	require.Equal(3, len(result))
+	for _, v := range result {
+		require.Equal("Frodo Baggins", v.By)
+	}
 }

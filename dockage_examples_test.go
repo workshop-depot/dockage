@@ -2,7 +2,6 @@ package dockage
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -56,10 +55,11 @@ func ExampleDB_Put() {
 
 	fmt.Println(db.Put(cmnt))
 
-	res, err := db.Get("CMNT::001")
+	var res []comment
+	err := db.Get(&res, "CMNT::001")
 	fmt.Println(err)
 
-	fmt.Println(json.Unmarshal(res[0].Val, &cmnt))
+	cmnt = res[0]
 
 	fmt.Println(cmnt.ID)
 	fmt.Println(cmnt.By)
@@ -67,7 +67,6 @@ func ExampleDB_Put() {
 	fmt.Println(cmnt.Tags)
 
 	// Output:
-	// <nil>
 	// <nil>
 	// <nil>
 	// CMNT::001
@@ -94,9 +93,10 @@ func ExampleDB_cas() {
 
 	fmt.Println(db.Put(cmnt))
 
-	res, err := db.Get(docID)
+	var res []comment
+	err := db.Get(&res, docID)
 	fmt.Println(err)
-	fmt.Println(json.Unmarshal(res[0].Val, cmnt))
+	*cmnt = res[0]
 
 	fmt.Println(cmnt.ID)
 	fmt.Println(cmnt.By)
@@ -112,9 +112,10 @@ func ExampleDB_cas() {
 	cmnt.Text = "Back again!"
 	fmt.Println(db.Put(cmnt))
 
-	res, err = db.Get(docID)
+	res = nil
+	err = db.Get(&res, docID)
 	fmt.Println(err)
-	fmt.Println(json.Unmarshal(res[0].Val, &cmnt))
+	*cmnt = res[0]
 
 	fmt.Println(cmnt.ID)
 	fmt.Println(cmnt.By)
@@ -125,14 +126,12 @@ func ExampleDB_cas() {
 	// Output:
 	// <nil>
 	// <nil>
-	// <nil>
 	// CMNT::001
 	// Frodo Baggins
 	// Hi!
 	// [tech golang]
 	// 0000000000000000
 	// error: rev field in doc json not matching
-	// <nil>
 	// <nil>
 	// <nil>
 	// CMNT::001
@@ -158,7 +157,8 @@ func ExampleDB_Delete() {
 
 	fmt.Println(db.Delete("CMNT::001"))
 
-	res, err := db.Get("CMNT::001")
+	var res []comment
+	err := db.Get(&res, "CMNT::001")
 	fmt.Println(err, res)
 
 	// Output:
@@ -530,7 +530,8 @@ func ExampleDB_Get() {
 	}
 	fmt.Println(db.Put(list...))
 
-	res, err := db.Get(
+	var res []comment
+	err := db.Get(&res,
 		"CMNT::001",
 		"CMNT::002",
 		"CMNT::003")
@@ -538,19 +539,14 @@ func ExampleDB_Get() {
 	fmt.Println(err)
 
 	for _, v := range res {
-		var c comment
-		fmt.Println(json.Unmarshal(v.Val, &c))
-		fmt.Printf("%s %s %s\n", v.Key, c.Text, c.By)
+		fmt.Printf("%s %s %s\n", v.ID, v.Text, v.By)
 	}
 
 	// Output:
 	// <nil>
 	// <nil>
-	// <nil>
 	// CMNT::001 Hi! Frodo Baggins
-	// <nil>
 	// CMNT::002 Hi! Frodo Baggins
-	// <nil>
 	// CMNT::003 Hi! Frodo Baggins
 }
 

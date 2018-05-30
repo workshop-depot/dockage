@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 
 	"github.com/dgraph-io/badger"
 )
@@ -153,27 +154,26 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 	return
 }
 
-// Get a list of documents based on their ids.
-func (db *DB) Get(ids ...string) (reslist []KV, reserr error) {
-	if len(ids) == 0 {
-		return
-	}
+// Get a list of documents based on their ids. Param docs is pointer to
+// slice of struct.
+func (db *DB) Get(docs interface{}, first string, rest ...string) (reserr error) {
+	ids := append([]string{first}, rest...)
 	reserr = db.db.View(func(txn *badger.Txn) error {
+		var reslist []string
 		for _, vid := range ids {
 			vid := pat4Key(vid)
 			item, err := txn.Get([]byte(vid))
 			if err != nil {
 				return err
 			}
-			k := item.KeyCopy(nil)
 			v, err := item.ValueCopy(nil)
 			if err != nil {
 				return err
 			}
-			k = bytes.TrimPrefix(k, []byte(keysp))
-			reslist = append(reslist, KV{Key: k, Val: v})
+			reslist = append(reslist, string(v))
 		}
-		return nil
+		js := "[" + strings.Join(reslist, ",") + "]"
+		return json.Unmarshal([]byte(js), docs)
 	})
 	return
 }
