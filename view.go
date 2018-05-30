@@ -4,20 +4,18 @@ import "github.com/dgraph-io/badger"
 
 //-----------------------------------------------------------------------------
 
-// V is the intermediate value that will be passed to ViewFn, when building a view.
-type V struct {
-	ID   string      // The id extracted from JSON.
-	JSON string      // Doc is marshalled to this json (must have "id" and "rev" json fields).
-	Doc  interface{} // Original document object - a pointer to struct.
+type idd struct {
+	ID  string
+	Doc interface{}
 }
 
 // ViewFn function that emits view keys (and json docs as view values).
-type ViewFn func(emitter Emitter, iv V)
+type ViewFn func(emitter Emitter, id string, doc interface{})
 
 // View is a calculated, persistent index.
 type View struct {
 	name   string
-	viewFn func(emitter Emitter, iv V) (inf interface{}, err error)
+	viewFn func(emitter Emitter, id string, doc interface{}) (inf interface{}, err error)
 	hash   string
 }
 
@@ -29,8 +27,8 @@ func NewView(name string, viewFn ViewFn) (resview View) {
 	if viewFn == nil {
 		panic("viewFn must be provided")
 	}
-	wrpvFn := func(emitter Emitter, iv V) (inf interface{}, err error) {
-		viewFn(emitter, iv)
+	wrpvFn := func(emitter Emitter, id string, doc interface{}) (inf interface{}, err error) {
+		viewFn(emitter, id, doc)
 		return
 	}
 	resview = newView(name, wrpvFn)
@@ -39,7 +37,7 @@ func NewView(name string, viewFn ViewFn) (resview View) {
 
 func newView(
 	name string,
-	viewFn func(emitter Emitter, iv V) (inf interface{}, err error)) (resview View) {
+	viewFn func(emitter Emitter, id string, doc interface{}) (inf interface{}, err error)) (resview View) {
 	resview = View{
 		name:   name,
 		viewFn: viewFn,
@@ -69,11 +67,11 @@ func (em *viewEmitter) Emit(viewKey, viewValue []byte) {
 	em.emitted = append(em.emitted, KV{Key: viewKey, Val: viewValue})
 }
 
-func (em *viewEmitter) build(iv V) (resinf interface{}, reserr error) {
+func (em *viewEmitter) build(id string, doc interface{}) (resinf interface{}, reserr error) {
 	partk2x := pat4View(em.v.hash + viewk2x)
 	partx2k := pat4View(em.v.hash + viewx2k)
 
-	markedKey := pat4View(iv.ID)
+	markedKey := pat4View(id)
 	preppedk := partk2x + markedKey
 
 	opt := badger.DefaultIteratorOptions
@@ -105,11 +103,11 @@ func (em *viewEmitter) build(iv V) (resinf interface{}, reserr error) {
 		}
 	}
 
-	if iv.JSON == "" {
+	if doc == nil {
 		return
 	}
 
-	resinf, reserr = em.v.viewFn(em, iv)
+	resinf, reserr = em.v.viewFn(em, id, doc)
 	if reserr != nil {
 		return
 	}
@@ -133,10 +131,10 @@ func (em *viewEmitter) build(iv V) (resinf interface{}, reserr error) {
 
 type views []View
 
-func (vl views) buildAll(tx *transaction, iv V) (resinf interface{}, reserr error) {
+func (vl views) buildAll(tx *transaction, id string, doc interface{}) (resinf interface{}, reserr error) {
 	for _, ix := range vl {
 		em := newViewEmitter(tx, ix)
-		resinf, reserr = em.build(iv)
+		resinf, reserr = em.build(id, doc)
 		if reserr != nil {
 			return
 		}

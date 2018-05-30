@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/tidwall/gjson"
 )
 
 func createDB() *DB {
@@ -86,7 +84,7 @@ func ExampleDB_cas() {
 
 	docID := "CMNT::001"
 
-	cmnt := comment{
+	cmnt := &comment{
 		ID:   docID,
 		By:   "Frodo Baggins",
 		Text: "Hi!",
@@ -98,7 +96,7 @@ func ExampleDB_cas() {
 
 	res, err := db.Get(docID)
 	fmt.Println(err)
-	fmt.Println(json.Unmarshal(res[0].Val, &cmnt))
+	fmt.Println(json.Unmarshal(res[0].Val, cmnt))
 
 	fmt.Println(cmnt.ID)
 	fmt.Println(cmnt.By)
@@ -148,7 +146,7 @@ func ExampleDB_Delete() {
 	db := createDB()
 	defer db.Close()
 
-	cmnt := comment{
+	cmnt := &comment{
 		ID:   "CMNT::001",
 		By:   "Frodo Baggins",
 		Text: "Hi!",
@@ -173,32 +171,24 @@ func ExampleView() {
 	db := createDB()
 	defer db.Close()
 
-	// gjson is a package that allows to get different fields of a json, even
-	// the nested parts, without unmarshalling it to a Go struct.
-
-	// gjson helps greatly in writing views.
-
 	// em Emitter allows to emit our view index into the view, in this case
 	// the tags of a comment. By emitting tags one by one, it is possible
 	// to query comments based on their tags.
 
 	db.AddView(NewView("tags",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "tags")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			res.ForEach(func(pk, pv gjson.Result) bool {
-				em.Emit([]byte(pv.String()), nil)
-				return true
-			})
-			return
+			for _, v := range c.Tags {
+				em.Emit([]byte(v), nil)
+			}
 		}))
 
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -229,13 +219,12 @@ func ExampleView_byTime() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Time()
+			t := c.At
 			if t.IsZero() {
 				return
 			}
@@ -246,7 +235,7 @@ func ExampleView_byTime() {
 	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -280,28 +269,23 @@ func ExampleView_viewVal() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Time()
+			t := c.At
 			if t.IsZero() {
 				return
 			}
-			res = gjson.Get(iv.JSON, "by")
-			if !res.Exists() {
-				return
-			}
-			em.Emit([]byte(t.Format("2006-01-02")), []byte(res.String()))
+			em.Emit([]byte(t.Format("2006-01-02")), []byte(c.By))
 			return
 		}))
 
 	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -335,13 +319,12 @@ func ExampleView_limit() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Time()
+			t := c.At
 			if t.IsZero() {
 				return
 			}
@@ -352,7 +335,7 @@ func ExampleView_limit() {
 	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -384,13 +367,12 @@ func ExampleView_end() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Time()
+			t := c.At
 			if t.IsZero() {
 				return
 			}
@@ -401,7 +383,7 @@ func ExampleView_end() {
 	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -435,24 +417,23 @@ func ExampleView_endAll() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Time()
+			t := c.At
 			if t.IsZero() {
 				return
 			}
-			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			em.Emit([]byte(t.Format("2006-01-02")), []byte(c.By))
 			return
 		}))
 
 	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -477,9 +458,9 @@ func ExampleView_endAll() {
 	// Output:
 	// <nil>
 	// <nil>
-	// CMNT::001  2018-01-01
-	// CMNT::002  2018-01-02
-	// CMNT::003  2018-01-03
+	// CMNT::001 Frodo Baggins 2018-01-01
+	// CMNT::002 Frodo Baggins 2018-01-02
+	// CMNT::003 Frodo Baggins 2018-01-03
 }
 
 func ExampleView_skip() {
@@ -487,24 +468,23 @@ func ExampleView_skip() {
 	defer db.Close()
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Time()
+			t := c.At
 			if t.IsZero() {
 				return
 			}
-			em.Emit([]byte(t.Format("2006-01-02")), nil)
+			em.Emit([]byte(t.Format("2006-01-02")), []byte(c.By))
 			return
 		}))
 
 	at := time.Date(2018, 1, 1, 12, 0, 0, 0, time.Local)
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -529,8 +509,8 @@ func ExampleView_skip() {
 	// Output:
 	// <nil>
 	// <nil>
-	// CMNT::002  2018-01-02
-	// CMNT::003  2018-01-03
+	// CMNT::002 Frodo Baggins 2018-01-02
+	// CMNT::003 Frodo Baggins 2018-01-03
 }
 
 func ExampleDB_Get() {
@@ -579,8 +559,8 @@ func ExampleView_timestampInt64() {
 	defer db.Close()
 
 	type comment struct {
-		ID   string   `json:"id"`
-		Rev  string   `json:"rev"`
+		ID   string   `json:"id"  dok:"id"`
+		Rev  string   `json:"rev" dok:"rev"`
 		By   string   `json:"by,omitempty"`
 		Text string   `json:"text,omitempty"`
 		At   int64    `json:"at,omitempty"`
@@ -588,13 +568,12 @@ func ExampleView_timestampInt64() {
 	}
 
 	db.AddView(NewView("by_time",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "at")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*comment)
+			if !ok {
 				return
 			}
-			t := res.Int()
+			t := c.At
 			ts := make([]byte, 8)
 			binary.BigEndian.PutUint64(ts, uint64(t))
 			em.Emit(ts, nil)
@@ -606,7 +585,7 @@ func ExampleView_timestampInt64() {
 	first := startTS
 	var list []interface{}
 	for i := 1; i <= 3; i++ {
-		cmnt := comment{
+		cmnt := &comment{
 			ID:   fmt.Sprintf("CMNT::%03d", i),
 			By:   "Frodo Baggins",
 			Text: "Hi!",
@@ -641,16 +620,14 @@ func ExampleView_count() {
 	defer db.Close()
 
 	db.AddView(NewView("tags",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "tags")
-			if !res.Exists() {
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(comment)
+			if !ok {
 				return
 			}
-			res.ForEach(func(pk, pv gjson.Result) bool {
-				em.Emit([]byte(pv.String()), nil)
-				return true
-			})
+			for _, v := range c.Tags {
+				em.Emit([]byte(v), nil)
+			}
 			return
 		}))
 

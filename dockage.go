@@ -5,9 +5,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 
 	"github.com/dgraph-io/badger"
-	"github.com/tidwall/sjson"
 )
 
 //-----------------------------------------------------------------------------
@@ -36,7 +36,7 @@ func Open(opt Options) (resdb *DB, reserr error) {
 	}
 	resdb = &DB{db: bdb, sq: sq}
 	resdb.sqView = newView(viewdbseq,
-		func(em Emitter, iv V) (inf interface{}, err error) {
+		func(em Emitter, id string, doc interface{}) (inf interface{}, err error) {
 			sq, err := resdb.sq.Next()
 			if err != nil {
 				return nil, err
@@ -101,9 +101,9 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 		return
 	}
 	reserr = db.db.Update(func(txn *badger.Txn) error {
-		var builds []V
+		var builds []idd
 		for _, vdoc := range docs {
-			js, id, rev, err := prepdoc(vdoc)
+			id, frev, err := prepdoc(vdoc)
 			if err != nil {
 				return err
 			}
@@ -112,35 +112,39 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 			if qerr != nil {
 				return qerr
 			}
-			if len(rev) == 0 {
+
+			if frev == nil {
 				if len(qres) > 0 {
-					if bytes.Compare(qres[0].Key, rev) != 0 {
-						return ErrNoMatchRev
-					}
+					return ErrNoMatchRev
 				}
-			} else if bytes.Compare(qres[0].Key, rev) != 0 {
+			}
+
+			if len(qres) > 0 && bytes.Compare(qres[0].Key, []byte(frev.Value().(string))) != 0 {
 				return ErrNoMatchRev
 			}
+
 			em := newViewEmitter(newTransaction(txn), db.sqView)
-			resinf, reserr := em.build(V{ID: string(id), JSON: string(js), Doc: vdoc})
+			resinf, reserr := em.build(string(id), vdoc)
 			if reserr != nil {
 				return reserr
 			}
-			rev = resinf.([]byte)
-			strjs, err := sjson.Set(string(js), "rev", string(rev))
+
+			frev.Set(string(resinf.([]byte)))
+
+			js, err := json.Marshal(vdoc)
 			if err != nil {
 				return err
 			}
-			js = []byte(strjs)
 
 			if err := txn.Set(append([]byte(keysp), id...), js); err != nil {
 				return err
 			}
-			builds = append(builds, V{ID: string(id), JSON: string(js), Doc: vdoc})
+
+			builds = append(builds, idd{ID: string(id), Doc: vdoc})
 		}
 		for _, v := range builds {
 			tx := newTransaction(txn)
-			if _, err := db.views.buildAll(tx, v); err != nil {
+			if _, err := db.views.buildAll(tx, v.ID, v.Doc); err != nil {
 				return err
 			}
 		}
@@ -188,7 +192,7 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 		}
 		for _, vid := range ids {
 			tx := newTransaction(txn)
-			if _, err := viewList.buildAll(tx, V{ID: vid}); err != nil {
+			if _, err := viewList.buildAll(tx, vid, nil); err != nil {
 				return err
 			}
 		}

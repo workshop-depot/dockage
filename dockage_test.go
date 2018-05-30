@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 // GOCACHE=off
@@ -90,8 +89,8 @@ func TestMain(m *testing.M) {
 }
 
 type comment struct {
-	ID   string    `json:"id"`
-	Rev  string    `json:"rev"`
+	ID   string    `json:"id"  dok:"id"`
+	Rev  string    `json:"rev" dok:"rev"`
 	By   string    `json:"by,omitempty"`
 	Text string    `json:"text,omitempty"`
 	At   time.Time `json:"at,omitempty"`
@@ -190,13 +189,14 @@ func TestView(t *testing.T) {
 	ddb := db
 	ddb.AddView(NewView(
 		"tags",
-		func(em Emitter, iv V) {
-			type kv = KV
-			res := gjson.Get(iv.JSON, "tags")
-			res.ForEach(func(pk, pv gjson.Result) bool {
-				em.Emit([]byte(pv.String()), nil)
-				return true
-			})
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(comment)
+			if !ok {
+				return
+			}
+			for _, v := range c.Tags {
+				em.Emit([]byte(v), nil)
+			}
 			return
 		}))
 
@@ -299,7 +299,7 @@ func TestDeleteView(t *testing.T) {
 func TestRevPut(t *testing.T) {
 	require := require.New(t)
 
-	c := comment{ID: "C4", Text: "Hi!"}
+	c := &comment{ID: "C4", Text: "Hi!"}
 
 	require.NoError(db.Put(c))
 
@@ -309,7 +309,7 @@ func TestRevPut(t *testing.T) {
 		require.Equal(1, len(res))
 		fst := res[0]
 		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, &c))
+		require.NoError(json.Unmarshal(fst.Val, c))
 	}
 
 	rev1 := c.Rev
@@ -326,7 +326,7 @@ func TestRevPut(t *testing.T) {
 		require.Equal(1, len(res))
 		fst := res[0]
 		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, &c))
+		require.NoError(json.Unmarshal(fst.Val, c))
 	}
 
 	c.Text = "EDIT 01"
@@ -338,7 +338,7 @@ func TestRevPut(t *testing.T) {
 		require.Equal(1, len(res))
 		fst := res[0]
 		require.Equal("C4", string(fst.Key))
-		require.NoError(json.Unmarshal(fst.Val, &c))
+		require.NoError(json.Unmarshal(fst.Val, c))
 	}
 	require.Equal("EDIT 01", c.Text)
 
@@ -352,7 +352,7 @@ func TestRevPut2(t *testing.T) {
 
 	require.NoError(db.Delete("C4"))
 
-	c := comment{ID: "C4"}
+	c := &comment{ID: "C4"}
 	var prevRev []byte
 	for i := 0; i < 10; i++ {
 		c.Text = fmt.Sprintf("Hi! %d", i)
@@ -370,4 +370,46 @@ func TestRevPut2(t *testing.T) {
 		}
 		prevRev = rev
 	}
+}
+
+type Granny struct {
+	ID  string `dok:"id"`
+	Rev string `dok:"rev"`
+}
+
+type Daddy struct {
+	Granny
+	UpdatedAt time.Time
+}
+
+type Data struct {
+	Daddy
+	Text string
+}
+
+func TestInspector(t *testing.T) {
+	require := require.New(t)
+
+	dt := &Data{}
+	dt.ID = "100"
+
+	var v interface{} = dt
+
+	ins := new(inspector)
+	ins.inspect(v)
+	ins.rev.Set("R-100")
+
+	require.Equal("100", ins.id)
+	require.Equal("R-100", ins.rev.Value())
+
+	g := Granny{ID: "100", Rev: "R-100"}
+
+	v = g
+
+	ins = new(inspector)
+	ins.inspect(v)
+	ins.rev.Set("R-100")
+
+	require.Equal("100", ins.id)
+	require.Equal("R-100", ins.rev.Value())
 }

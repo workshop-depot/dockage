@@ -1,49 +1,31 @@
 package dockage
 
 import (
-	"encoding/json"
 	"hash/fnv"
 	"strings"
 
 	"github.com/dgraph-io/badger"
-	"github.com/tidwall/gjson"
+	"github.com/fatih/structs"
 )
 
-func prepdoc(doc interface{}) (resjs, resID, resRev []byte, reserr error) {
-	switch x := doc.(type) {
-	case string:
-		resjs = []byte(x)
-	case []byte:
-		resjs = x
-	default:
-		js, err := json.Marshal(doc)
-		if err != nil {
-			reserr = err
-			return
-		}
-		resjs = js
-	}
-	if !gjson.Valid(string(resjs)) {
-		reserr = ErrInvalidJSONDoc
-		return
-	}
-	resid := gjson.Get(string(resjs), "id")
-	if !resid.Exists() {
+func prepdoc(doc interface{}) (resID []byte, resRev *structs.Field, reserr error) {
+	ins := new(inspector)
+	ins.inspect(doc)
+	if ins.id == "" {
 		reserr = ErrNoID
 		return
 	}
-	sid := resid.String()
+	sid := ins.id
 	if strings.ContainsAny(sid, specials) {
 		reserr = ErrInvalidID
 		return
 	}
 	resID = []byte(sid)
-	resrev := gjson.Get(string(resjs), "rev")
-	if !resrev.Exists() {
+	if ins.rev == nil {
 		reserr = ErrNoRev
 		return
 	}
-	resRev = []byte(resrev.String())
+	resRev = ins.rev
 	return
 }
 
@@ -124,4 +106,30 @@ func itrFunc(txn *badger.Txn,
 		}
 	}
 	return nil
+}
+
+type inspector struct {
+	id  string
+	rev *structs.Field
+}
+
+func (ins *inspector) inspect(v interface{}) {
+	list := structs.Fields(v)
+	ins.recinspect(list...)
+}
+
+func (ins *inspector) recinspect(fields ...*structs.Field) {
+	for _, fl := range fields {
+		if fl.IsEmbedded() {
+			ins.recinspect(fl.Fields()...)
+			continue
+		}
+		dok := fl.Tag("dok")
+		switch dok {
+		case "id":
+			ins.id = fl.Value().(string)
+		case "rev":
+			ins.rev = fl
+		}
+	}
 }
