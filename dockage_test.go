@@ -89,8 +89,8 @@ func TestMain(m *testing.M) {
 }
 
 type comment struct {
-	ID   string    `json:"id"  dok:"id"`
-	Rev  string    `json:"rev" dok:"rev"`
+	ID   string    `json:"id"`
+	Rev  string    `json:"rev"`
 	By   string    `json:"by,omitempty"`
 	Text string    `json:"text,omitempty"`
 	At   time.Time `json:"at,omitempty"`
@@ -373,8 +373,8 @@ func TestRevPut2(t *testing.T) {
 }
 
 type Granny struct {
-	ID  string `dok:"id"`
-	Rev string `dok:"rev"`
+	ID  string `json:"id"`
+	Rev string `json:"rev"`
 }
 
 type Daddy struct {

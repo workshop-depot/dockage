@@ -124,7 +124,7 @@ func (ins *inspector) recinspect(fields ...*structs.Field) {
 			ins.recinspect(fl.Fields()...)
 			continue
 		}
-		dok := fl.Tag("dok")
+		dok := fl.Tag("json")
 		switch dok {
 		case "id":
 			ins.id = fl.Value().(string)
