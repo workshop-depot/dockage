@@ -651,3 +651,62 @@ func ExampleView_count() {
 	// 0
 	// 3
 }
+
+func ExampleDB_doc1() {
+	db := createDB()
+	defer db.Close()
+
+	type post struct {
+		ID   string    `json:"id"`
+		Rev  string    `json:"rev"`
+		By   string    `json:"by,omitempty"`
+		Text string    `json:"text,omitempty"`
+		At   time.Time `json:"at,omitempty"`
+		Tags []string  `json:"tags,omitempty"`
+	}
+
+	db.AddView(NewView("tags",
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*post)
+			if !ok {
+				return
+			}
+			for _, v := range c.Tags {
+				em.Emit([]byte(v), nil)
+			}
+			return
+		}))
+	db.AddView(NewView("time-day",
+		func(em Emitter, id string, doc interface{}) {
+			c, ok := doc.(*post)
+			if !ok {
+				return
+			}
+			em.Emit([]byte(c.At.Format("2006-01-02")), nil)
+			return
+		}))
+
+	p := &post{
+		ID:   "POST:001",
+		By:   "Frodo Baggins",
+		Text: "Awesome blog post!",
+		At:   time.Now(),
+		Tags: []string{"golang", "nosql"},
+	}
+
+	db.Put(p)
+
+	var result []post
+	db.Get(&result, "POST:001")
+
+	db.Delete("POST:001")
+
+	db.Query(Q{View: "time-day", Start: []byte("2018-05-20"), End: []byte("2018-05-30")})
+
+	db.Query(Q{View: "tags", Start: []byte("golang"), Prefix: []byte("golang")})
+
+	fmt.Println(p.ID)
+
+	// Output:
+	// POST:001
+}
