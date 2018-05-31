@@ -442,3 +442,63 @@ func TestGet2(t *testing.T) {
 		require.Equal("Frodo Baggins", v.By)
 	}
 }
+
+func TestGetDifferentDocs(t *testing.T) {
+	require := require.New(t)
+	db := createDB()
+	defer db.Close()
+
+	var clist []interface{}
+	var cids []string
+	for i := 1; i <= 3; i++ {
+		cmnt := &comment{
+			ID:   fmt.Sprintf("CMNT::%03d", i),
+			By:   "Frodo Baggins",
+			Text: "Hi!",
+			At:   time.Now(),
+			Tags: []string{"tech", "golang"},
+		}
+		clist = append(clist, cmnt)
+		cids = append(cids, cmnt.ID)
+	}
+	require.NoError(db.Put(clist...))
+
+	type post struct {
+		ID     string `json:"id"`
+		Rev    string `json:"rev"`
+		Author string `json:"by,omitempty"`
+		Text   string `json:"text,omitempty"`
+	}
+
+	var plist []interface{}
+	var pids []string
+	for i := 1; i <= 3; i++ {
+		p := &post{
+			ID:     fmt.Sprintf("POST::%03d", i),
+			Author: "Ta Da!",
+			Text:   "Hya!",
+		}
+		plist = append(plist, p)
+		pids = append(pids, p.ID)
+	}
+	require.NoError(db.Put(plist...))
+
+	// get documents of different types different
+	var result = []interface{}{
+		&comment{},
+		&post{},
+	}
+	require.NoError(db.Get(&result, "CMNT::001", "POST::002"))
+	require.Equal(2, len(result))
+	for _, v := range result {
+		switch x := v.(type) {
+		case *comment:
+			require.Equal("Frodo Baggins", x.By)
+		case *post:
+			require.Equal("Ta Da!", x.Author)
+			require.Equal("Hya!", x.Text)
+		default:
+			require.Failf("UNKNOWN TYPE", fmt.Sprintf("%T", v))
+		}
+	}
+}
