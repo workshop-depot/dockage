@@ -97,6 +97,8 @@ func (db *DB) DeleteView(v string) (reserr error) {
 
 // Put a list of documents inside database, in a single transaction.
 // Document must have a json field named "id" and  a json field named "rev".
+// All documents passed by docs parameter will be inserted into the database
+// in one transaction. Also all views will be computer in the same transaction.
 func (db *DB) Put(docs ...interface{}) (reserr error) {
 	if len(docs) == 0 {
 		return
@@ -155,9 +157,9 @@ func (db *DB) Put(docs ...interface{}) (reserr error) {
 }
 
 // Get a list of documents based on their ids. Param docs is pointer to
-// slice of struct.
-func (db *DB) Get(docs interface{}, first string, rest ...string) (reserr error) {
-	ids := append([]string{first}, rest...)
+// slice of struct. All documents will be read from database in one read transaction.
+func (db *DB) Get(docs interface{}, firstID string, restID ...string) (reserr error) {
+	ids := append([]string{firstID}, restID...)
 	reserr = db.db.View(func(txn *badger.Txn) error {
 		var reslist []string
 		for _, vid := range ids {
@@ -179,6 +181,7 @@ func (db *DB) Get(docs interface{}, first string, rest ...string) (reserr error)
 }
 
 // Delete a list of documents based on their ids.
+// All documents will be deleted from database in one write transaction.
 func (db *DB) Delete(ids ...string) (reserr error) {
 	if len(ids) == 0 {
 		return
@@ -204,7 +207,8 @@ func (db *DB) Delete(ids ...string) (reserr error) {
 // Query queries a view using provided parameters. If no View is provided, it searches
 // all ids using parameters. Number of results is always limited - default 100 documents.
 // If total count for a query is needed by setting params.Count to true, no documents
-// will be returned - because it might be a costly action.
+// will be returned - because it might be a costly action. All documents will be read
+// from database in one read transaction.
 func (db *DB) Query(params Q) (reslist []Res, rescount int, reserr error) {
 	reslist, rescount, reserr = db.queryView(params, nil)
 	return
