@@ -42,6 +42,10 @@ func Open(opt Options) (resdb *DB, reserr error) {
 			if err != nil {
 				return nil, err
 			}
+			// TODO:
+			if sq > 1000 && sq%1000 == 0 {
+				go resdb.db.RunValueLogGC(0.5)
+			}
 			ix := make([]byte, 8)
 			binary.BigEndian.PutUint64(ix, sq)
 			ix = []byte(hex.EncodeToString(ix))
